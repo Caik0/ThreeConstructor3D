@@ -1,0 +1,122 @@
+.wrapper {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  background: var(--bg);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  border-top: 4px solid var(--accent);
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.sidebarTopo {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  padding: 0 12px;
+}
+
+.link,
+.linkAtivo {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-h);
+
+  &:hover {
+    background: var(--bg);
+  }
+}
+
+.linkAtivo {
+  color: var(--accent-contrast);
+  background: var(--accent);
+
+  &:hover {
+    background: var(--accent);
+  }
+}
+
+.sidebarRodape {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.nomeUsuario {
+  overflow: hidden;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-h);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sair {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text-h);
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bg);
+  }
+}
+
+.content {
+  padding: 24px;
+}
+
+@media (max-width: 720px) {
+  .wrapper {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .sidebar {
+    min-height: 56px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Os 3 links empilhados verticalmente tomavam a tela toda antes do conteúdo — em linha
+     (quebrando se precisar) ocupam só o espaço que precisam */
+  .nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .sidebarRodape {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .nomeUsuario {
+    max-width: 50vw;
+  }
+
+  .content {
+    padding: 16px;
+  }
+}
