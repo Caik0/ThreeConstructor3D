@@ -1,0 +1,132 @@
+services:
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: construtor-3d-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=${DB_DATABASE};User Id=${DB_USERNAME};Password=${DB_PASSWORD};TrustServerCertificate=True"
+      Redis__ConnectionString: "${REDIS_HOST}:${REDIS_PORT}"
+    ports:
+      - "5000:8080"
+    volumes:
+      # Modelos 3D e texturas ficam aqui (ver Armazenamento:Diretorio) — uma pasta de verdade no
+      # disco da máquina, pra sobreviver a um rebuild do container da API
+      - ./media:/app/media
+      # Solte um .glb aqui pra ele virar módulo sozinho da próxima vez que a tela de módulos abrir
+      # (ver Armazenamento:DiretorioImportacao / ImportacaoPendente)
+      - ./importar:/app/importar
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      init-db:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+    networks:
+      - construtor-3d
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: construtor-3d-sqlserver
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${DB_PASSWORD}
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q \"SELECT 1\" -b -o /dev/null"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks:
+      - construtor-3d
+
+  init-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: construtor-3d-init-db
+    restart: "no"
+    environment:
+      MSSQL_SA_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: ${DB_DATABASE}
+    entrypoint:
+      - /bin/bash
+      - /init-db.sh
+    volumes:
+      - ./docker/sql/init-db.sh:/init-db.sh:ro
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - construtor-3d
+
+  redis:
+    image: redis:7-alpine
+    container_name: construtor-3d-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks:
+      - construtor-3d
+
+  react:
+    build:
+      context: ../construtor_3d
+      dockerfile: docker/Dockerfile
+    container_name: construtor-3d-frontend
+    restart: always
+    user: root
+    environment:
+      VITE_API_BASE_URL: /api
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ../construtor_3d:/app
+      - /app/node_modules
+    stdin_open: true
+    tty: true
+    networks:
+      - construtor-3d
+    command: >
+      sh -c "
+        corepack enable &&
+        corepack prepare yarn@1.22.22 --activate &&
+        yarn install --non-interactive &&
+        echo 'Subindo servidor Dev (Vite HMR)...' &&
+        yarn dev --host 0.0.0.0
+      "
+
+  nginx:
+    image: nginx:alpine
+    container_name: construtor-3d-nginx
+    restart: always
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+      - react
+    networks:
+      - construtor-3d
+
+networks:
+  construtor-3d:
+    driver: bridge
+
+volumes:
+  sqlserver-data:
+  redis-data:
