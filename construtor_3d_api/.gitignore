@@ -1,0 +1,34 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+.env
+appsettings.Development.json
+bin/
+obj/
+
+# Modelos 3D e texturas guardados fora do banco (ver Services/ArmazenamentoLocalArquivos)
+media/
+# Solte um .glb aqui pra virar módulo sozinho (ver Services/ImportacaoPendente)
+importar/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
