@@ -1,0 +1,108 @@
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.trava {
+  display: inline-flex;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text);
+  background: none;
+  opacity: 0.6;
+  cursor: pointer;
+
+  &:hover {
+    opacity: 1;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+  }
+}
+
+.travaAtiva {
+  color: var(--accent-text);
+  opacity: 1;
+}
+
+.rotulo {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.entrada {
+  position: relative;
+}
+
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 40px 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--text) 70%, var(--surface));
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-h);
+  background: var(--surface);
+
+  &:focus {
+    outline: 2px solid var(--accent-text);
+    outline-offset: -1px;
+  }
+  &[aria-invalid='true'] {
+    border-color: var(--accent-text);
+  }
+}
+
+/* Campo com fórmula ao vivo (Parent!...): reserva espaço pro "ƒ" antes da unidade */
+.temFormula {
+  padding-right: 56px;
+  border-style: dashed;
+  border-color: var(--accent-text);
+}
+
+.unidade {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+
+.marcaFormula {
+  position: absolute;
+  top: 50%;
+  right: 34px;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  font-style: italic;
+  font-weight: 700;
+  color: var(--accent-text);
+  pointer-events: none;
+}
+
+.erro {
+  font-size: 0.8rem;
+  color: var(--accent-text);
+}
+
+.somenteLeitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
