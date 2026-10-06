@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>construtor_3d</title>
+    <script>
+      // Aplica o tema salvo antes da primeira pintura, para não piscar o tema padrão
+      // (mantido em sincronia com src/lib/tema/tema.ts)
+      (function () {
+        try {
+          var tema = localStorage.getItem('construtor3d.tema');
+          if (tema === 'claro' || tema === 'escuro') {
+            document.documentElement.setAttribute('data-theme', tema === 'claro' ? 'light' : 'dark');
+          }
+        } catch (erro) {
+          // localStorage indisponível: segue o tema do sistema
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
