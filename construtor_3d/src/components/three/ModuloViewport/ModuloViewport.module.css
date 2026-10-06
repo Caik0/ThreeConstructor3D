@@ -1,0 +1,359 @@
+.viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  overflow: hidden;
+  background: var(--code-bg);
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+
+  canvas {
+    display: block;
+    cursor: grab;
+    touch-action: none;
+  }
+}
+
+/* Canto inferior direito: o topo e as laterais ficam com a barra e os painéis do editor */
+.acoes {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.botao {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text-h);
+  background: var(--surface);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--accent-border);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  &[aria-pressed='true'] {
+    color: var(--accent-contrast);
+    background: var(--accent);
+    border-color: transparent;
+  }
+}
+
+.dica {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 8px;
+  padding-inline: 8px;
+  font-size: 0.75rem;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* Barra flutuante do construtor de paredes: desenhada direto no piso da cena, então fica
+   centralizada embaixo em vez de cobrir o viewport inteiro como o antigo painel em planta */
+.barraParede {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(90%, 640px);
+  /* Em telas baixas (celular deitado, teclado aberto etc.) o conteúdo pode não caber mesmo
+     compacto — rola dentro do próprio painel em vez de empurrar o topo por cima do cabeçalho */
+  max-height: min(50vh, 420px);
+  overflow-y: auto;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+}
+
+.dicaParede {
+  margin: 0;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.linhaParede {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 16px;
+}
+
+.campoEspessura {
+  width: 160px;
+}
+
+.campoDistanciaParede {
+  width: 140px;
+}
+
+.infoParede {
+  padding-bottom: 10px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.acoesParede {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+  padding-bottom: 2px;
+}
+
+.modoTinta {
+  display: flex;
+  gap: 6px;
+}
+
+.corTinta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+
+  input[type='color'] {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: none;
+    cursor: pointer;
+  }
+}
+
+/* Painel de pintura: a mesma janela flutuante do construtor de paredes, só que mais larga (tem
+   uma grade de texturas dentro) — parecido com a paleta de materiais do SketchUp */
+.painelPintura {
+  composes: barraParede;
+  max-width: min(90%, 420px);
+}
+
+.painelPinturaCabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.painelPinturaImagem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.previewMaterial {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.previewSwatch {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--bg);
+}
+
+.gradeTexturas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.itemTextura,
+.itemTexturaAtivo {
+  display: block;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--accent-border);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+.itemTexturaAtivo {
+  border: 2px solid var(--accent);
+}
+
+.imagemTextura {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gruposPintura {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.botaoPrimario,
+.botaoSecundario {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+.botaoPrimario {
+  border: 0;
+  color: var(--accent-contrast);
+  background: var(--accent);
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 85%, black);
+  }
+}
+
+.botaoSecundario {
+  border: 1px solid var(--border);
+  color: var(--text-h);
+  background: none;
+
+  &:hover {
+    background: var(--bg);
+  }
+  &[aria-pressed='true'] {
+    color: var(--accent-contrast);
+    background: var(--accent);
+  }
+}
+
+@media (max-width: 720px) {
+  /* Construtor de paredes no celular: sem campo de espessura (usa o valor atual/padrão — ajusta
+     no desktop) nem o texto de instrução (a barra de ferramentas fixa já mostra os ícones) — só
+     os botões de ação, pra caber tudo numa tela pequena */
+  .campoEspessura,
+  .dicaConstrutorParede {
+    display: none;
+  }
+
+  /* Rótulos curtos + padding apertado: os botões de ação ainda cabem numa linha só nas
+     larguras mais comuns de celular */
+  .botaoPrimario,
+  .botaoSecundario {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+  }
+
+  /* Cancelar/Desfazer/Concluir sempre numa linha só — nunca empilhados */
+  .acoesParede {
+    flex-wrap: nowrap;
+  }
+
+  /* Deixa livre a barra de ferramentas fixa embaixo (ProjetoEditor.module.css .grupoFerramentas) —
+     sem isso, .dica (a frase que descreve a ferramenta ativa pra Selecionar/Mover/Girar) ficava
+     escondida atrás dela, ilegível */
+  .acoes {
+    bottom: 76px;
+  }
+
+  .barraParede {
+    bottom: 76px;
+  }
+
+  .dica {
+    bottom: 76px;
+  }
+}
+
+/* Etiqueta flutuante do módulo (CSS2DObject, ver ModuloViewport.tsx): sempre de frente pra
+   câmera, acompanha a peça mesmo girada */
+.etiqueta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 11px;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.etiquetaCodigo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.etiquetaNumero {
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+/* Etiqueta de medida da trena (CSS2DObject): mesmo estilo da etiqueta de módulo, com a cor da
+   trena na borda pra não confundir os dois */
+.etiquetaTrena {
+  padding: 3px 8px;
+  border: 1px solid #f5a623;
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-h);
+  white-space: nowrap;
+}
