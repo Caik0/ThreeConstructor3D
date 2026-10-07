@@ -1,0 +1,9 @@
+.tentarDeNovo {
+  padding: 0;
+  border: 0;
+  font: inherit;
+  color: var(--accent-text);
+  background: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
