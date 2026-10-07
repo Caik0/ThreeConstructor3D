@@ -1,0 +1,112 @@
+/* Compartilhado por Login e Cadastro (ver AuthLayout, que centraliza isto na tela) */
+
+.painel {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 380px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+.titulo {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: normal;
+}
+
+.campos {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rotulo {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--text) 70%, var(--surface));
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--text-h);
+  background: var(--surface);
+
+  &:focus {
+    outline: 2px solid var(--accent-text);
+    outline-offset: -1px;
+  }
+  &[aria-invalid='true'] {
+    border-color: var(--accent-text);
+  }
+}
+
+.erro {
+  font-size: 0.85rem;
+  color: var(--accent-text);
+}
+
+.erroEnvio {
+  padding: 10px 12px;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: var(--accent-text);
+  background: var(--accent-bg);
+}
+
+.botaoPrimario {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 85%, black);
+  }
+  &:disabled {
+    opacity: 0.7;
+    cursor: progress;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+.rodape {
+  font-size: 0.9rem;
+  color: var(--text);
+  text-align: center;
+}
+
+.rodape a {
+  font-weight: 600;
+  color: var(--accent-text);
+}
