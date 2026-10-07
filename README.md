@@ -1,6 +1,6 @@
 # Construtor 3D
 
-Editor 3D de módulos de marcenaria/cozinha no navegador — peças, paredes, pisos e vãos, com medidas em fórmulas, texturas por face e um catálogo de módulos reutilizáveis, no espírito do SketchUp.
+Editor 3D de módulos de marcenaria/cozinha no navegador — peças, paredes, pisos e vãos, com medidas em fórmulas, texturas por face e um catálogo de módulos reutilizáveis.
 
 Este repositório reúne os dois projetos que compõem a aplicação, lado a lado:
 
@@ -26,7 +26,7 @@ O Nginx é quem o navegador acessa; ele serve o front-end e faz proxy de `/api` 
 
 ## Principais funcionalidades
 
-- **Editor 3D** no estilo SketchUp: desenhar paredes, criar peças por forma paramétrica (caixa, cilindro) ou importar `.glb`, agrupar/duplicar/mover, trena, balde de tinta.
+- **Editor 3D**: desenhar paredes, criar peças por forma paramétrica (caixa, cilindro) ou importar `.glb`, agrupar/duplicar/mover, trena, balde de tinta.
 - **Fórmulas e variáveis** por campo, por elemento e por face, com referência ao elemento pai (`Parent!campo`).
 - **Grupos de face**: reúne faces de diferentes peças de um grupo pra pintar tudo de uma vez.
 - **Catálogo de módulos**: salva uma peça/grupo à parte pra reaproveitar em outros projetos, com importação automática de `.glb` soltos numa pasta do servidor.
