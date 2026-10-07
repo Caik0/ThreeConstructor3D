@@ -1,0 +1,17 @@
+.voltar {
+  display: inline-block;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  color: var(--text-h);
+
+  &:hover {
+    background: var(--bg);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+  }
+}
