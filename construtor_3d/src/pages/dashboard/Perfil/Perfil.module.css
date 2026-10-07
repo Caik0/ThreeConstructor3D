@@ -1,0 +1,41 @@
+.painel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 480px;
+}
+
+.titulo {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: normal;
+}
+
+.dados {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.linha {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  dt {
+    font-size: 0.85rem;
+    color: var(--text);
+  }
+
+  dd {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-h);
+  }
+}
