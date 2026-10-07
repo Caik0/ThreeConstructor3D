@@ -1,0 +1,110 @@
+.page {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 960px;
+  padding: 40px 24px;
+  text-align: left;
+}
+
+.header h1 {
+  margin: 0;
+}
+
+.ajuda {
+  color: var(--text);
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+
+  th,
+  td {
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.badgeAdmin {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.contagemPermissoes {
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.botaoEditar {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: none;
+  color: var(--text-h);
+  font: inherit;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--accent-border);
+    color: var(--accent-text);
+  }
+}
+
+.linhaAdmin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.gruposDesabilitados {
+  opacity: 0.5;
+}
+
+.grupoPermissoes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 0;
+  border: none;
+
+  legend {
+    padding: 0 0 6px;
+    color: var(--text-h);
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+}
+
+.linhaPermissao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
