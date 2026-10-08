@@ -1,0 +1,1185 @@
+/* Cobre a janela inteira, fora da largura limitada do #root */
+.editor {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  overflow: hidden;
+  text-align: left;
+  background: var(--bg);
+}
+
+/* A cena 3D fica no fundo; barra e painéis flutuam por cima */
+.viewport {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.flutuante {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+}
+
+/* O desfoque do cabeçalho fica num pseudo-elemento (não no próprio nó, como em .flutuante) porque
+   backdrop-filter cria um novo bloco de contenção pra descendentes com position:fixed/absolute —
+   isso quebraria a barra de ferramentas fixa no celular, que precisa se ancorar na viewport, não
+   no cabeçalho. Os painéis (.flutuante puro) não precisam disso e não usam essa variante porque
+   overflow-y:auto + pseudo-elemento com z-index negativo não compõe direito em Safari/iOS */
+.topo {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  isolation: isolate;
+  box-shadow: var(--shadow);
+
+  &::before {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(8px);
+    content: '';
+  }
+}
+
+.titulo {
+  flex: 1;
+  min-width: 80px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.nome {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Card com o caminho do grupo aberto (Projeto › Grupo › Subgrupo), logo abaixo do cabeçalho —
+   ver .painelComTrilha, que desloca o painel de Estrutura pra não ficar por baixo deste card */
+.trilhaCard {
+  position: absolute;
+  top: 80px;
+  left: 12px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: calc(100% - 24px);
+  padding: 4px 10px;
+  overflow: hidden;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.trilhaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.trilhaLink {
+  overflow: hidden;
+  max-width: 140px;
+  padding: 1px 5px;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  color: var(--accent-text);
+  background: none;
+  text-decoration: underline;
+  text-overflow: ellipsis;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bg);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+  }
+}
+
+.trilhaAtual {
+  overflow: hidden;
+  max-width: 140px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-weight: 600;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  text-overflow: ellipsis;
+}
+
+.sairGrupo {
+  margin-left: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  color: var(--text-h);
+  background: none;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--accent-border);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+  }
+}
+
+/* Desfazer/refazer, em grupo, ao lado do nome do projeto */
+.historico {
+  display: flex;
+  gap: 2px;
+}
+
+.botaoHistorico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-h);
+  background: transparent;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--accent-border);
+  }
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+.botaoPainel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-h);
+  background: transparent;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--accent-border);
+  }
+  &[aria-expanded='true'] {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+.status {
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.salvar {
+  padding: 8px 20px;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 85%, black);
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+/* Linha divisória entre grupos de ferramentas, como na barra única do SketchUp */
+.divisor {
+  flex: none;
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+}
+
+/* Ferramentas de transformação: grupo inline na barra superior (vira barra fixa no celular) */
+.grupoFerramentas {
+  flex: none;
+  display: flex;
+  gap: 2px;
+}
+
+.ferramenta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-h);
+  background: none;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bg);
+  }
+  &[aria-pressed='true'] {
+    color: var(--accent-contrast);
+    background: var(--accent);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+/* Painéis flutuantes: abaixo da barra, deixando livre a faixa inferior da cena */
+.painel {
+  position: absolute;
+  top: 80px;
+  z-index: 1;
+  max-height: calc(100% - 80px - 64px);
+  overflow-y: auto;
+}
+
+.painelEstrutura {
+  left: 12px;
+  width: 300px;
+}
+
+/* Com o card do caminho (.trilhaCard) visível, o painel de Estrutura começa mais abaixo, pra não
+   ficar por baixo dele — a altura do card é pequena e previsível (uma linha só de texto), então um
+   deslocamento fixo já basta, sem precisar medir a altura de verdade */
+.painelComTrilha {
+  top: 132px;
+  max-height: calc(100% - 132px - 64px);
+}
+
+.painelPropriedades {
+  right: 12px;
+  width: 300px;
+}
+
+/* Botão que "revela" o painel de propriedades no celular (só existe nessa largura, decidido no
+   JS: não precisa de media query aqui). Fica bem acima da barra de ferramentas fixa, como o
+   "puxador" de uma gaveta fechada */
+.botaoRevelarPropriedades {
+  position: fixed;
+  bottom: 64px;
+  left: 50%;
+  z-index: 4;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent) 85%, black);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+/* Vista Explodida: painel flutuante independente, centralizado no topo da cena */
+.painelExplosao {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  z-index: 3;
+  width: 300px;
+  padding: 16px;
+  transform: translateX(-50%);
+}
+
+.controleExplosao {
+  box-sizing: border-box;
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.acoesExplosao {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.painelConteudo {
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+  border: 0;
+}
+
+.painelTopo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.painelTopoAcoes {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fechar {
+  display: inline-flex;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text);
+  background: none;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: var(--text-h);
+    background: var(--bg);
+  }
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+  }
+}
+
+.erroSalvar {
+  position: absolute;
+  bottom: 56px;
+  left: 50%;
+  z-index: 3;
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: var(--accent-text);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+}
+
+.aviso {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 16px;
+}
+
+.secaoTitulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: normal;
+}
+
+.contador {
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--text-h);
+  background: var(--bg);
+}
+
+.vazio {
+  font-size: 0.9rem;
+}
+
+/* Estrutura (Outliner) */
+
+.contextoAtual {
+  margin-bottom: 8px;
+  font-size: 0.8rem;
+
+  strong {
+    color: var(--text-h);
+  }
+}
+
+.adicionar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.botaoAdicionar {
+  flex: 1 1 calc(20% - 6px);
+  min-width: 64px;
+  padding: 6px 4px;
+  border: 1px dashed var(--accent-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-text);
+  background: var(--accent-bg);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-style: solid;
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+.acoesSelecao {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.acao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--text-h);
+  background: var(--surface);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--accent-border);
+  }
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+.arvore {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.no {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 2px;
+  padding-right: 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  user-select: none;
+
+  &:hover {
+    background: var(--bg);
+  }
+}
+
+.noAtivo,
+.noAtivo:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+/* Seleção múltipla (Ctrl/Cmd+Click): mesmo destaque de .noAtivo, mas sem a borda — pra distinguir
+   a primária (com o painel de propriedades aberto) das demais */
+.noExtraSelecionado,
+.noExtraSelecionado:hover {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.noContexto .noNome {
+  color: var(--accent-text);
+}
+
+.noArrastado {
+  opacity: 0.5;
+}
+
+/* Elemento oculto: linha esmaecida, mas continua selecionável/clicável normalmente */
+.noOculto {
+  opacity: 0.55;
+}
+
+/* Rótulo que acompanha o ponteiro durante o arraste */
+.fantasma {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  padding: 4px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-h);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+/* Indicadores de onde o elemento arrastado vai entrar */
+.soltarDentro {
+  outline: 2px dashed var(--accent-text);
+  outline-offset: -2px;
+}
+
+.soltarAntes {
+  box-shadow: inset 0 2px 0 var(--accent-text);
+}
+
+.soltarDepois {
+  box-shadow: inset 0 -2px 0 var(--accent-text);
+}
+
+.expandir {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text);
+  background: none;
+  cursor: pointer;
+
+  svg {
+    transition: transform 0.15s;
+  }
+  &[aria-expanded='true'] svg {
+    transform: rotate(90deg);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+  }
+}
+
+.expandirVazio {
+  flex: none;
+  width: 20px;
+}
+
+/* Olho de ocultar/exibir, no fim de cada linha da árvore */
+.noVisibilidade {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text);
+  background: none;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bg);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+  }
+}
+
+.noSelecionar {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 4px;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: none;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: -2px;
+  }
+}
+
+.noIcone {
+  flex: none;
+  display: inline-flex;
+}
+
+.noAtivo .noIcone,
+.noExtraSelecionado .noIcone {
+  color: var(--accent-text);
+}
+
+.noTexto {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.noNome {
+  overflow: hidden;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-h);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.noMedidas {
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemAlerta {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.listaModulos {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.itemModulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: left;
+  color: inherit;
+  background: none;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bg);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+.miniaturaModulo {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.textoModulo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nomeModulo {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.soltarRaiz {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+/* Painel de propriedades */
+
+.campos {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.grupoInfo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.colisao {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+
+  input {
+    flex: none;
+    margin: 0;
+    accent-color: var(--accent);
+  }
+}
+
+.botaoSecundario {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-h);
+  background: none;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--accent-border);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+.facesBotoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.botaoFace,
+.botaoFaceAtivo {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.8rem;
+  background: none;
+  color: var(--text-h);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--accent-border);
+  }
+}
+
+.botaoFaceAtivo {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.grupoTitulo {
+  margin-bottom: 2px;
+  padding: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rotulo {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--text) 70%, var(--surface));
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text-h);
+  background: var(--surface);
+
+  &:focus {
+    outline: 2px solid var(--accent-text);
+    outline-offset: -1px;
+  }
+  &[aria-invalid='true'] {
+    border-color: var(--accent-text);
+  }
+}
+
+.erro {
+  font-size: 0.8rem;
+  color: var(--accent-text);
+}
+
+.dicaCampo {
+  font-size: 0.8rem;
+}
+
+.girarRapido,
+.acoesVao {
+  display: flex;
+  gap: 8px;
+
+  button {
+    flex: 1;
+  }
+}
+
+/* Rótulo de um campo/legenda com um botão de ajuda ao lado */
+.rotuloComAjuda {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Variáveis customizadas do elemento (painel de propriedades) */
+.variavelLinha {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+
+  .erro {
+    grid-column: 1 / -1;
+  }
+}
+
+.variavelNome {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: monospace;
+  color: var(--text-h);
+}
+
+.removerVariavel {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--text-h);
+  background: none;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--accent-border);
+    color: var(--accent-text);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+.novaVariavel {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+
+  .erro {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Dialogo de configuração de faces: mais largo que o padrão de confirmação (tem seletor de módulo
+   + botões de face lado a lado, que não cabem nos 440px de um diálogo simples de sim/não) */
+.dialogoLargo {
+  composes: dialogo from '../../../components/ui/DialogoConfirmacao/DialogoConfirmacao.module.css';
+  width: min(560px, calc(100% - 32px));
+}
+
+/* Um grupo de face já criado: cartão próprio (não a grade de 3 colunas de .novaVariavel, que
+   espreme o seletor de módulo e os botões de face numa coluna só) */
+.cartaoGrupoDeFace {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/* Módulo escolhido + as faces dele + o botão de adicionar, numa linha que quebra se precisar */
+.linhaAdicionarMembro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Nome do grupo + o botão de excluir o grupo inteiro, sempre na mesma linha (as faces dele ficam
+   numa linha própria embaixo, ver .facesBotoes) */
+.cabecalhoGrupoDeFace {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Botão que ocupa o nome do grupo inteiro: clicar nele expande/colapsa os membros, pra uma lista
+   com vários grupos não mostrar todos os chips e seletores de uma vez só */
+.botaoExpandirGrupo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 2px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+.contagemGrupoDeFace {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.tipos {
+  display: flex;
+  gap: 8px;
+}
+
+.tipo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+
+  &:has(input:checked) {
+    border-color: var(--accent);
+    color: var(--text-h);
+    background: var(--accent-bg);
+  }
+
+  input {
+    margin: 0;
+    accent-color: var(--accent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expandir svg {
+    transition: none;
+  }
+}
+
+/* Celular: barra quebra em linhas e os painéis viram gavetas inferiores */
+@media (max-width: 720px) {
+  .topo {
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    flex-wrap: wrap;
+  }
+
+  .titulo {
+    flex-basis: 100%;
+    order: 1;
+  }
+
+  .status {
+    display: none;
+  }
+
+  /* No topo, sobra só um separador dos grupos que ficaram (histórico/estrutura) */
+  .divisorFerramentas {
+    display: none;
+  }
+
+  /* Ferramentas de transformação viram uma barra fixa embaixo, ao alcance do polegar. Só esta
+     barra (.ferramentasPrincipais) — "Etiqueta do módulo" e "Variáveis globais" também usam
+     .grupoFerramentas pro visual base, mas sem esta segunda classe continuam no fluxo normal do
+     cabeçalho; do contrário as três virariam barras fixas na mesma posição, uma escondendo as
+     outras */
+  .ferramentasPrincipais {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 5;
+    gap: 10px;
+    justify-content: center;
+    padding: 8px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    border: 1px solid var(--border);
+    border-radius: 12px 12px 0 0;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(8px);
+  }
+
+  .ferramenta {
+    width: 44px;
+    height: 44px;
+  }
+
+  .painelExplosao {
+    top: 116px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    transform: none;
+  }
+
+  .trilhaCard {
+    top: 116px;
+    left: 8px;
+    max-width: calc(100% - 16px);
+  }
+
+  /* Gavetas inferiores ficam por cima da cena, mas param antes da barra de ferramentas fixa */
+  .painel {
+    top: auto;
+    right: 0;
+    bottom: 64px;
+    left: 0;
+    width: auto;
+    max-height: 55%;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .painelPropriedades {
+    z-index: 2;
+  }
+}
+
+.facesImportacao {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+}
+
+.faceImportacao {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
