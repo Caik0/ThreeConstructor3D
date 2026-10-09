@@ -1,0 +1,54 @@
+/* Paleta do projeto: #b51b33 sobre #f5f5f5 (claro) ou #1a1a1a (escuro).
+   Claro por padrão; escuro quando o sistema operacional prefere (sem escolha salva) ou quando
+   o usuário escolhe pelo alternador de tema, que marca [data-theme] em <html> (ver lib/tema) */
+:root {
+  --accent: #b51b33;
+  --accent-contrast: #ffffff; /* texto sobre fundo --accent */
+  --accent-text: #b51b33; /* --accent usado como cor de texto/links */
+  --accent-bg: rgba(181, 27, 51, 0.08);
+  --accent-border: rgba(181, 27, 51, 0.5);
+
+  --bg: #f5f5f5;
+  --surface: #ffffff;
+  --text: #4d4d4d;
+  --text-h: #1a1a1a;
+  --border: #e0e0e0;
+  --code-bg: #ebebeb;
+  --shadow:
+    rgba(0, 0, 0, 0.08) 0 10px 15px -3px, rgba(0, 0, 0, 0.04) 0 4px 6px -2px;
+}
+
+@media (prefers-color-scheme: dark) {
+  /* Sem escolha salva ([data-theme] ausente), segue o sistema */
+  :root:not([data-theme='light']) {
+    /* #b51b33 tem contraste 2.6:1 sobre #1a1a1a; para texto usa um tom mais claro */
+    --accent-text: #e8606f;
+    --accent-bg: rgba(181, 27, 51, 0.18);
+    --accent-border: rgba(181, 27, 51, 0.6);
+
+    --bg: #1a1a1a;
+    --surface: #242424;
+    --text: #b3b3b3;
+    --text-h: #f5f5f5;
+    --border: #333333;
+    --code-bg: #262626;
+    --shadow:
+      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+  }
+}
+
+/* Escuro escolhido explicitamente, mesmo com o sistema no claro */
+:root[data-theme='dark'] {
+  --accent-text: #e8606f;
+  --accent-bg: rgba(181, 27, 51, 0.18);
+  --accent-border: rgba(181, 27, 51, 0.6);
+
+  --bg: #1a1a1a;
+  --surface: #242424;
+  --text: #b3b3b3;
+  --text-h: #f5f5f5;
+  --border: #333333;
+  --code-bg: #262626;
+  --shadow:
+    rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+}
