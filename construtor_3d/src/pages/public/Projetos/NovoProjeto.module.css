@@ -1,0 +1,196 @@
+.painel {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 820px;
+  margin: 32px auto;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+.topo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fechar {
+  display: inline-flex;
+  padding: 6px;
+  border-radius: 8px;
+  color: var(--text-h);
+
+  &:hover {
+    background: var(--bg);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+  }
+}
+
+.tituloPagina {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: normal;
+}
+
+.tituloEtapa {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  outline: none;
+}
+
+.progresso {
+  display: flex;
+  gap: 6px;
+  margin-top: -8px;
+}
+
+.segmento,
+.segmentoAtivo {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.segmentoAtivo {
+  background: var(--accent);
+}
+
+.rodape {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.botaoPrimario,
+.botaoSecundario {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+.botaoPrimario {
+  border: 0;
+  color: var(--accent-contrast);
+  background: var(--accent);
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 85%, black);
+  }
+  &:disabled {
+    opacity: 0.7;
+    cursor: progress;
+  }
+}
+
+.erroEnvio {
+  padding: 10px 12px;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: var(--accent-text);
+  background: var(--accent-bg);
+}
+
+.botaoSecundario {
+  border: 1px solid var(--border);
+  color: var(--text-h);
+  background: transparent;
+
+  &:hover {
+    background: var(--bg);
+  }
+}
+
+/* Campos de formulário, compartilhados pelas etapas */
+
+.campos {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rotulo {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-h);
+
+  em {
+    font-weight: 400;
+    color: var(--text);
+  }
+}
+
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--text) 70%, var(--surface));
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--text-h);
+  background: var(--surface);
+  resize: vertical;
+
+  &:focus {
+    outline: 2px solid var(--accent-text);
+    outline-offset: -1px;
+  }
+  &[aria-invalid='true'] {
+    border-color: var(--accent-text);
+  }
+}
+
+.erro {
+  font-size: 0.85rem;
+  color: var(--accent-text);
+}
+
+/* Etapa 2: ponto de partida */
+
+.opcoes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 720px) {
+  .painel {
+    margin: 16px auto;
+    padding: 16px;
+  }
+
+  .opcoes {
+    grid-template-columns: 1fr;
+  }
+}
