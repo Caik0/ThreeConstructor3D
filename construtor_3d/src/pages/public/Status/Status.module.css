@@ -1,0 +1,226 @@
+.page {
+  --ok: #16a34a;
+  --error: #dc2626;
+  --muted: #9ca3af;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  padding: 48px 24px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .page {
+    --ok: #4ade80;
+    --error: #f87171;
+    --muted: #6b7280;
+  }
+}
+
+/* Cada estado define a cor usada por nós, conectores e resumo */
+.ok {
+  --state-color: var(--ok);
+}
+.error {
+  --state-color: var(--error);
+}
+.pending,
+.unknown {
+  --state-color: var(--muted);
+}
+
+.header h1 {
+  margin: 0 0 8px;
+  color: var(--text-h);
+}
+
+.summary {
+  margin: 0;
+  font-weight: 600;
+  color: var(--state-color);
+}
+
+.flow {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  max-width: 900px;
+}
+
+.node {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 16px;
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--state-color);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--state-color);
+}
+
+.node.ok .dot {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 25%, transparent);
+}
+
+.node.pending .dot {
+  animation: pulse 1s ease-in-out infinite alternate;
+}
+
+.title {
+  color: var(--text-h);
+  font-size: 1.1rem;
+}
+
+.subtitle {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  word-break: break-all;
+}
+
+.badge {
+  margin-top: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--state-color);
+  background: color-mix(in srgb, var(--state-color) 12%, transparent);
+}
+
+.detail {
+  font-size: 0.85rem;
+}
+
+.connector {
+  flex: 0 0 56px;
+  align-self: center;
+  height: 4px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--state-color) 0 8px,
+    transparent 8px 14px
+  );
+}
+
+.connector.ok {
+  animation: flow-x 0.8s linear infinite;
+}
+
+.connector.error {
+  background: var(--error);
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  font-size: 0.9rem;
+}
+
+.button {
+  font: inherit;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 0;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 85%, black);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.raw {
+  width: 100%;
+  max-width: 900px;
+  text-align: left;
+
+  summary {
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+
+  pre {
+    margin: 8px 0 0;
+    padding: 12px 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    background: var(--code-bg);
+    color: var(--text-h);
+  }
+}
+
+@keyframes flow-x {
+  to {
+    background-position: 14px 0;
+  }
+}
+
+@keyframes flow-y {
+  to {
+    background-position: 0 14px;
+  }
+}
+
+@keyframes pulse {
+  from {
+    opacity: 0.3;
+  }
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 32px 16px;
+  }
+
+  .flow {
+    flex-direction: column;
+  }
+
+  .connector {
+    flex-basis: 36px;
+    width: 4px;
+    height: auto;
+    background: repeating-linear-gradient(
+      180deg,
+      var(--state-color) 0 8px,
+      transparent 8px 14px
+    );
+  }
+
+  .connector.ok {
+    animation-name: flow-y;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connector,
+  .dot {
+    animation: none !important;
+  }
+}
