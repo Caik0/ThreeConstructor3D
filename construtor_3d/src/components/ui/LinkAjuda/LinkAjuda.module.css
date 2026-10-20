@@ -1,0 +1,29 @@
+.botao {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--text-h);
+  background: var(--surface);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--accent-border);
+    color: var(--accent-text);
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
