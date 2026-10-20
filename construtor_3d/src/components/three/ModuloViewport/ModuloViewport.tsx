@@ -1,47 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AmbientLight,
   Box3,
-  BoxGeometry,
   BufferGeometry,
   DirectionalLight,
-  DoubleSide,
-  EdgesGeometry,
-  ExtrudeGeometry,
   GridHelper,
-  Float32BufferAttribute,
   Group,
-  Line,
-  LineBasicMaterial,
-  LineDashedMaterial,
-  LineSegments,
+  type Intersection,
   MathUtils,
-  Material,
   Mesh,
   MeshBasicMaterial,
-  MeshStandardMaterial,
   PerspectiveCamera,
   Plane,
-  PlaneGeometry,
   Raycaster,
   Scene,
-  Shape,
-  Sphere,
   SphereGeometry,
-  SRGBColorSpace,
-  TextureLoader,
   Vector2,
   Vector3,
   WebGLRenderer,
-  type Intersection,
-  type Object3D,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import CampoMedida from '../../ui/CampoMedida/CampoMedida';
-import { FACES_MODELO, FACES_TEXTURA, facesDaForma, FORMAS, parametrosValidos } from '../../../lib/formas/formas';
+import { FACES_TEXTURA, facesDaForma, parametrosValidos } from '../../../lib/formas/formas';
 import { formatarCm } from '../../../lib/medidas/medidas';
 import {
   LIMITE_POSICAO,
@@ -50,73 +33,98 @@ import {
   PAREDE_COMPRIMENTO_MAXIMO,
   paredeValida,
   pisoValido,
-  type Forma,
-  type Parede,
-  type Piso,
   type Posicao,
   type Rotacao,
 } from '../../../lib/projetos/projetos';
 import { useImportacaoAutomaticaTexturas } from '../../../lib/hooks/useImportacaoAutomaticaTexturas';
 import { useTexturas } from '../../../lib/hooks/useTexturas';
-import { extrairMalhaDoCanto } from '../../../lib/modelo3d/modelo3d';
 import { ehCorSolida, lerTexturaJpeg } from '../../../lib/textura/textura';
-import { normalizarGraus } from '../../../lib/transformacoes/transformacoes';
 import {
+  type AlinhamentoParede,
   alvoEdicaoParede,
   anguloGraus,
   aplicarEngatesNasPontas,
   calcularEncaixe,
   construirSegmentosParede,
   deslocamentoExplosaoRecursivo,
+  deslocarTrechoParaOEixo,
   distanciaXY,
-  estaDentro,
-  limitesLocais,
   type ElementoEditor,
   type EngateParede,
+  estaDentro,
   type Ferramenta,
+  pontosDoEixoDaParede,
 } from '../../../store/editorStore';
 import styles from './ModuloViewport.module.css';
-
-const COR_PECA = 0xb8b8b8;
-const COR_PAREDE = 0xcdc4b3;
-const COR_PISO = 0x9c8a72;
-const COR_SELECIONADA = 0xb51b33;
-const COR_SELECIONADA_TEXTURA = 0xff9a9a;
-// Tolerância (mm) para não acusar colisão em elementos apenas encostados (grudados pelo encaixe)
-const TOLERANCIA_COLISAO = 1;
-// Opacidade do que fica fora do grupo aberto, como o esmaecimento do SketchUp
-const OPACIDADE_FORA_DO_CONTEXTO = 0.2;
-// Deslocamento máximo do ponteiro (px) para contar como clique e não como arrasto. 4px já bastava
-// pra mouse, mas um toque no celular quase sempre se move mais que isso sozinho (área de contato
-// do dedo, pulso da mão) — ficava interpretando um toque parado como arraste (girava a câmera ou
-// arrastava um vértice sem querer), bem notado nas ferramentas de clique preciso (parede, trena)
-const TOLERANCIA_CLIQUE = 10;
-// Passo do movimento pelas setas, em mm
-const PASSO_MOVIMENTO = 10;
-// Passo da rotação pelos anéis, em graus
-const PASSO_ROTACAO = 15;
-// Profundidade positiva (Y nos dados do app) aponta para longe de quem olha, como no SketchUp;
-// no three.js o Z nativo positivo aponta para a câmera, então a cena usa -Z nesse eixo (ver os
-// pontos onde os dados viram a cena, ex.: o `y` de container.position.set(x, z, SENTIDO_Z * y))
-const SENTIDO_Z = -1;
-// Cores dos eixos X, Y (altura) e Z, as mesmas das setas de mover
-const CORES_EIXOS = [0xe5484d, 0x3e7bfa, 0x46a758];
-// Comprimento mínimo dos eixos da seleção, em mm
-const COMPRIMENTO_MINIMO_EIXOS = 300;
-// Destaque da seleção: linha contínua, vermelha forte em objetos (peças) e azul em grupos
-const COR_DESTAQUE_OBJETO = 0xff1a2e;
-const COR_DESTAQUE_GRUPO = 0x1f7bff;
-// Piso e caixa tracejada da planta do ambiente (etapa "Planta do ambiente" do assistente)
-const COR_PISO_SALA = 0xd7d2c8;
-const COR_CAIXA_SALA = 0x8e9aa8;
-// Pé-direito padrão das paredes desenhadas quando o projeto não tem planta do ambiente
-const PE_DIREITO_PADRAO = 2700;
-const ESPESSURA_PADRAO_PAREDE = 100;
-// Distância (mm) para clicar perto do primeiro ponto e fechar o contorno de paredes
-const LIMIAR_FECHAR_CONTORNO = 150;
-// Distância (graus) do ângulo reto (múltiplo de 90°) mais próximo pra travar nele ao marcar o
-// próximo canto de uma parede, facilitando desenhar linhas retas sem precisão de pixel
-const LIMIAR_TRAVAR_ANGULO = 4;
+import {
+  atualizarEtiquetasDistanciaDoArraste,
+  haColisao,
+  haColisaoDeslocada,
+  reancorarArraste,
+} from './colisao';
+import {
+  COMPRIMENTO_MINIMO_EIXOS,
+  COR_DESTAQUE_GRUPO,
+  COR_DESTAQUE_OBJETO,
+  COR_MANIPULADOR_ATIVO,
+  COR_SELECIONADA,
+  CORES_EIXOS,
+  COR_TRENA,
+  ESPESSURA_PADRAO_PAREDE,
+  LIMIAR_FECHAR_CONTORNO,
+  PASSO_MOVIMENTO,
+  PASSO_ROTACAO,
+  PE_DIREITO_PADRAO,
+  RAIO_MARCADOR_TRENA,
+  SENTIDO_Z,
+  TOLERANCIA_CLIQUE,
+} from './constantes';
+import {
+  indiceSegmentoProximo,
+  indiceVerticeProximo,
+  moverOuFundirVertice,
+  travarNaLinhaReta,
+  travarVerticeArrastado,
+  verticeMaisProximo,
+  verticesVisiveis,
+} from './construtorParedes';
+import {
+  atualizarSala,
+  criarDesenhoParede,
+  criarDesenhoTrena,
+  criarEixos,
+  criarSala,
+  descartarDesenhoParede,
+  descartarDesenhoTrena,
+  descartarEixos,
+  descartarSala,
+} from './desenhos';
+import {
+  ajustarModelo,
+  aplicarAparencia,
+  atualizarCaixaGrupo,
+  chaveModelo3d,
+  definirEtiqueta,
+  definirForma,
+  definirModelo3d,
+  definirTexturas,
+  descartarObjeto,
+  faceClicada,
+} from './malhas';
+import { criarGeometriaParede, definirParede, definirPiso } from './paredes';
+import { type Cena, type ObjetoElemento } from './tipos';
+import {
+  aplicarRotacao,
+  distancia3D,
+  limitarPosicao,
+  limparEtiquetas,
+  limparGeometrias,
+  limparMalhasProprias,
+  malhasVisiveis,
+  ponteiroNormalizado,
+  rotacaoDaCena,
+} from './utilitarios';
+import { ajustarPlanosDeCorte, enquadrar, ORDEM_DAS_VISTAS, type VistaId, VISTAS } from './vistas';
 
 interface ModuloViewportProps {
   elementos: Record<string, ElementoEditor>;
@@ -157,1187 +165,6 @@ interface ModuloViewportProps {
   onPintarGrupo: (chave: string, nomeGrupo: string, imagem: string | null) => void;
 }
 
-// Objetos 3D de um elemento: o contêiner leva a posição relativa ao pai e recebe os
-// contêineres dos filhos; peças têm também malha e arestas dentro dele
-interface ObjetoElemento {
-  container: Group;
-  malha?: Mesh<BufferGeometry, MeshStandardMaterial | MeshStandardMaterial[]>;
-  arestas?: LineSegments<BufferGeometry, LineBasicMaterial>;
-  forma?: Forma;
-  modelo?: Group;
-  modeloTamanhoNativo?: Posicao;
-  modelo3dCarregando?: string;
-  descartado?: boolean;
-  parede?: Parede;
-  vaos?: ElementoEditor[];
-  piso?: Piso;
-  corBase?: number;
-  texturas?: (string | null)[];
-  texturasModelo?: (string | null)[];
-  geometriaDividida?: boolean;
-  tamanhoAlvo?: Posicao;
-  texturasAlvo?: Record<string, string>;
-  caixa?: LineSegments<BufferGeometry, LineBasicMaterial>;
-  etiqueta?: CSS2DObject;
-  etiquetaConteudo?: string;
-}
-
-// Piso e caixa tracejada da planta do ambiente: mesma origem em canto usada pelas peças e grupos
-interface Sala {
-  grupo: Group;
-  chao: Mesh<PlaneGeometry, MeshBasicMaterial>;
-  caixa: LineSegments<BufferGeometry, LineDashedMaterial>;
-}
-
-// Pré-visualização do construtor de paredes: desenhada direto no piso da cena 3D, sobre o
-// alvo real (não usa `objetos`, que só existe para elementos já salvos na árvore)
-interface DesenhoParede {
-  grupo: Group;
-  segmentos: Group;
-  materialSegmento: MeshStandardMaterial;
-  marcadores: Group;
-  elastico: Mesh<BufferGeometry, MeshStandardMaterial>;
-  marcadorFechar: Mesh<SphereGeometry, MeshBasicMaterial>;
-}
-
-// Trena: mesma ideia da pré-visualização das paredes (grupo à parte, escondido quando a
-// ferramenta não está ativa), mas os pontos podem estar em qualquer Y (não só no piso) e cada
-// segmento mostra a própria medida numa etiqueta, em vez de virar geometria de verdade
-interface DesenhoTrena {
-  grupo: Group;
-  linha: Line<BufferGeometry, LineBasicMaterial>;
-  elastico: Line<BufferGeometry, LineBasicMaterial>;
-  marcadores: Group;
-  etiquetas: Group;
-}
-
-interface Cena {
-  camera: PerspectiveCamera;
-  controls: OrbitControls;
-  transform: TransformControls;
-  renderer: WebGLRenderer;
-  raiz: Group;
-  sala: Sala;
-  eixosAmbiente: Group;
-  eixosSelecao: Group;
-  alvoEixos: Object3D | null;
-  parede: DesenhoParede;
-  trena: DesenhoTrena;
-}
-
-// A geometria crua (FORMAS[tipo].criarGeometria) já nasce com a altura no Y nativo do three.js
-// (convenção da própria biblioteca, ver criarGeometriaCaixa/CylinderGeometry) — mas `tamanho` é o
-// Tamanho dos DADOS do app, onde quem é altura é o Z (ver FORMAS[tipo].tamanho); por isso
-// tamanho.z alimenta o Y da cena aqui, e tamanho.y (profundidade) o Z dela
-function criarGeometria({ tipo, parametros }: Forma) {
-  const geometria = FORMAS[tipo].criarGeometria(parametros);
-  const tamanho = FORMAS[tipo].tamanho(parametros);
-  geometria.translate(tamanho.x / 2, tamanho.z / 2, (SENTIDO_Z * tamanho.y) / 2);
-  return geometria;
-}
-
-// Cria a malha e as arestas na primeira vez, e troca só a geometria nas seguintes
-function definirMalha(objeto: ObjetoElemento, chave: string, geometria: BufferGeometry, corBase: number) {
-  if (objeto.malha && objeto.arestas) {
-    objeto.malha.geometry.dispose();
-    objeto.arestas.geometry.dispose();
-    objeto.malha.geometry = geometria;
-    objeto.arestas.geometry = new EdgesGeometry(geometria, 30);
-  } else {
-    objeto.malha = new Mesh(geometria, new MeshStandardMaterial({ color: corBase }));
-    objeto.malha.userData.chave = chave;
-    objeto.arestas = new LineSegments(
-      new EdgesGeometry(geometria, 30),
-      new LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 }),
-    );
-    objeto.container.add(objeto.malha, objeto.arestas);
-  }
-  objeto.corBase = corBase;
-}
-
-const materiaisDe = (malha: NonNullable<ObjetoElemento['malha']>) =>
-  Array.isArray(malha.material) ? malha.material : [malha.material];
-
-const carregadorTextura = new TextureLoader();
-
-// Aplica cor sólida ou imagem por face: com algo em alguma face a malha passa a ter um material
-// por face (as demais seguem com a cor base); sem nada, volta a ter um material só
-function definirTexturas(objeto: ObjetoElemento, faces: string[], texturas: Record<string, string> | undefined) {
-  const malha = objeto.malha;
-  if (!malha) return;
-  const valores = faces.map((face) => texturas?.[face] ?? null);
-  const atuais = objeto.texturas ?? faces.map(() => null);
-  if (valores.every((v, i) => v === atuais[i]) && Array.isArray(malha.material) === valores.some(Boolean)) return;
-
-  if (!valores.some(Boolean)) {
-    for (const material of materiaisDe(malha)) {
-      material.map?.dispose();
-      material.dispose();
-    }
-    malha.material = new MeshStandardMaterial({ color: objeto.corBase ?? COR_PECA });
-    objeto.texturas = undefined;
-    return;
-  }
-
-  if (!Array.isArray(malha.material)) {
-    malha.material.dispose();
-    malha.material = faces.map(() => new MeshStandardMaterial({ color: objeto.corBase ?? COR_PECA }));
-  }
-  const materiais = malha.material as MeshStandardMaterial[];
-  objeto.texturas = valores;
-  valores.forEach((valor, i) => {
-    // Cor sólida é instantânea (sem imagem pra carregar); imagem só é reprocessada se mudou ou
-    // ainda não tinha carregado (o mapa some quando a face volta a ficar sem imagem)
-    if (valor !== null && ehCorSolida(valor)) {
-      if (valor === atuais[i] && !materiais[i].map) return;
-      materiais[i].map?.dispose();
-      materiais[i].map = null;
-      materiais[i].needsUpdate = true;
-      materiais[i].color.set(valor);
-      return;
-    }
-    if (valor === atuais[i] && (materiais[i].map || !valor)) return;
-    materiais[i].map?.dispose();
-    materiais[i].map = null;
-    materiais[i].needsUpdate = true;
-    if (!valor) {
-      materiais[i].color.set(objeto.corBase ?? COR_PECA);
-      return;
-    }
-    materiais[i].color.set(0xffffff);
-    carregadorTextura.load(valor, (textura) => {
-      if (objeto.descartado || objeto.texturas?.[i] !== valor) {
-        textura.dispose();
-        return;
-      }
-      textura.colorSpace = SRGBColorSpace;
-      materiais[i].map = textura;
-      materiais[i].needsUpdate = true;
-    });
-  });
-}
-
-// Modelo 3D: não há "faces" de verdade, então cada triângulo vai pra face da caixa envolvente que
-// mais se parece com a direção dele (a da maior componente da normal), e a imagem é projetada
-// plana nessa face (u/v vistos de fora dela, como numa caixa). A geometria dividida é guardada na
-// própria malha pra não refazer; a original volta quando as texturas saem
-interface OriginalMalha {
-  geometria: BufferGeometry;
-  material: Material | Material[];
-  dividida?: BufferGeometry;
-  materiais?: MeshStandardMaterial[];
-}
-
-// Direção dominante de uma normal → índice da face, na mesma ordem de FACES_TEXTURA.caixa
-// (direita, esquerda, topo, base, frente, fundo). Usada tanto por dividirPorFaces (a partir da
-// normal de cada triângulo, pra dividir a malha inteira) quanto pelo balde de tinta (a partir da
-// normal que o próprio raycaster já devolve, pra descobrir só a face clicada)
-function indiceFaceDaNormal(n: { x: number; y: number; z: number }): number {
-  const ax = Math.abs(n.x);
-  const ay = Math.abs(n.y);
-  const az = Math.abs(n.z);
-  return ax >= ay && ax >= az ? (n.x >= 0 ? 0 : 1) : ay >= az ? (n.y >= 0 ? 2 : 3) : n.z >= 0 ? 4 : 5;
-}
-
-function faceClicada(elemento: ElementoEditor, normal: { x: number; y: number; z: number }): string {
-  if (elemento.forma && facesDaForma(elemento.forma) === FACES_TEXTURA.cilindro) {
-    return Math.abs(normal.y) > 0.5 ? (normal.y >= 0 ? 'topo' : 'base') : 'lateral';
-  }
-  return FACES_TEXTURA.caixa[indiceFaceDaNormal(normal)];
-}
-
-function dividirPorFaces(origem: BufferGeometry): BufferGeometry {
-  const g = origem.index ? origem.toNonIndexed() : origem.clone();
-  g.computeBoundingBox();
-  const { min, max } = g.boundingBox as Box3;
-  const tam = { x: max.x - min.x || 1, y: max.y - min.y || 1, z: max.z - min.z || 1 };
-  const pos = g.getAttribute('position');
-  const normal = g.getAttribute('normal');
-  const triangulos = pos.count / 3;
-
-  const a = new Vector3();
-  const b = new Vector3();
-  const c = new Vector3();
-  const grupos: number[][] = FACES_MODELO.map(() => []);
-  for (let t = 0; t < triangulos; t++) {
-    a.fromBufferAttribute(pos, t * 3);
-    b.fromBufferAttribute(pos, t * 3 + 1);
-    c.fromBufferAttribute(pos, t * 3 + 2);
-    const n = b.sub(a).cross(c.sub(a));
-    grupos[indiceFaceDaNormal(n)].push(t);
-  }
-
-  const posicoes: number[] = [];
-  const normais: number[] = [];
-  const uvs: number[] = [];
-  const dividida = new BufferGeometry();
-  let inicio = 0;
-  grupos.forEach((triangulosDaFace, indice) => {
-    for (const t of triangulosDaFace) {
-      for (let k = 0; k < 3; k++) {
-        const v = t * 3 + k;
-        const x = pos.getX(v);
-        const y = pos.getY(v);
-        const z = pos.getZ(v);
-        posicoes.push(x, y, z);
-        if (normal) normais.push(normal.getX(v), normal.getY(v), normal.getZ(v));
-        const nx = (x - min.x) / tam.x;
-        const ny = (y - min.y) / tam.y;
-        const nz = (z - min.z) / tam.z;
-        // Olhando cada face de fora, com o topo da imagem pra cima (e, no topo/base, pro fundo)
-        if (indice === 0) uvs.push(1 - nz, ny);
-        else if (indice === 1) uvs.push(nz, ny);
-        else if (indice === 2) uvs.push(nx, 1 - nz);
-        else if (indice === 3) uvs.push(nx, nz);
-        else if (indice === 4) uvs.push(nx, ny);
-        else uvs.push(1 - nx, ny);
-      }
-    }
-    if (triangulosDaFace.length > 0) dividida.addGroup(inicio, triangulosDaFace.length * 3, indice);
-    inicio += triangulosDaFace.length * 3;
-  });
-  g.dispose();
-
-  dividida.setAttribute('position', new Float32BufferAttribute(posicoes, 3));
-  if (normal) dividida.setAttribute('normal', new Float32BufferAttribute(normais, 3));
-  else dividida.computeVertexNormals();
-  dividida.setAttribute('uv', new Float32BufferAttribute(uvs, 2));
-  // Sem isso, essa geometria nasce sem boundingSphere (o culling do three.js só supre isso na
-  // primeira vez que precisar dela, o que pode já ser tarde/desatualizado) — foi essa falta,
-  // reintroduzida aqui toda vez que uma peça de modelo 3D ganha textura por face, que fazia peça
-  // sumir ao orbitar mesmo depois de extrairMalhaDoCanto já calcular a dela na malha original
-  dividida.computeBoundingBox();
-  dividida.computeBoundingSphere();
-  return dividida;
-}
-
-function malhasDoModelo(objeto: ObjetoElemento): Mesh[] {
-  const malhas: Mesh[] = [];
-  objeto.modelo?.traverse((filho) => {
-    if (filho instanceof Mesh) malhas.push(filho);
-  });
-  return malhas;
-}
-
-// Devolve as malhas do modelo à geometria/material do arquivo, descartando só o que foi criado aqui
-function restaurarTexturasModelo(objeto: ObjetoElemento) {
-  for (const malha of malhasDoModelo(objeto)) {
-    const original = malha.userData.original as OriginalMalha | undefined;
-    if (!original) continue;
-    malha.geometry = original.geometria;
-    malha.material = original.material;
-    original.dividida?.dispose();
-    for (const material of original.materiais ?? []) {
-      material.map?.dispose();
-      material.dispose();
-    }
-    delete malha.userData.original;
-  }
-  objeto.texturasModelo = undefined;
-}
-
-function definirTexturasModelo(objeto: ObjetoElemento, texturas: Record<string, string> | undefined) {
-  if (!objeto.modelo) return;
-  const valores = FACES_MODELO.map((face) => texturas?.[face] ?? null);
-  const atuais = objeto.texturasModelo ?? FACES_MODELO.map(() => null);
-  if (valores.every((v, i) => v === atuais[i])) return;
-
-  restaurarTexturasModelo(objeto);
-  if (!valores.some(Boolean)) return;
-  objeto.texturasModelo = valores;
-
-  for (const malha of malhasDoModelo(objeto)) {
-    const materialOriginal = Array.isArray(malha.material) ? malha.material[0] : malha.material;
-    const original: OriginalMalha = { geometria: malha.geometry, material: malha.material };
-    original.dividida = dividirPorFaces(malha.geometry);
-    // Cor sólida já sai pronta (color); imagem começa branca (0xffffff), até a textura carregar
-    original.materiais = valores.map(
-      (valor) => new MeshStandardMaterial({ color: valor && ehCorSolida(valor) ? valor : 0xffffff, visible: valor !== null }),
-    );
-    malha.userData.original = original;
-    malha.geometry = original.dividida;
-    // Face sem textura segue com o material do arquivo; com textura, um material só com a cor/imagem
-    malha.material = valores.map((valor, i) => (valor ? original.materiais![i] : materialOriginal));
-
-    valores.forEach((valor, i) => {
-      if (!valor || ehCorSolida(valor)) return;
-      carregadorTextura.load(valor, (textura) => {
-        if (objeto.descartado || objeto.texturasModelo?.[i] !== valor || malha.userData.original !== original) {
-          textura.dispose();
-          return;
-        }
-        textura.colorSpace = SRGBColorSpace;
-        (original.materiais as MeshStandardMaterial[])[i].map = textura;
-        (original.materiais as MeshStandardMaterial[])[i].needsUpdate = true;
-      });
-    });
-  }
-}
-
-function definirForma(objeto: ObjetoElemento, chave: string, forma: Forma) {
-  definirMalha(objeto, chave, criarGeometria(forma), COR_PECA);
-  objeto.forma = forma;
-}
-
-// Parede: comprimento no eixo local X a partir da origem, altura em Y a partir do chão (mesma
-// origem em canto das peças), mas espessura em Z CENTRALIZADA na origem — a origem é o eixo
-// central da parede, como o SketchUp trata a linha desenhada, não uma das faces
-// Sem vãos: uma caixa só, como sempre foi
-function criarCaixaParede(comprimento: number, altura: number, espessura: number) {
-  const geometria = new BoxGeometry(comprimento, altura, espessura);
-  geometria.translate(comprimento / 2, altura / 2, 0);
-  return geometria;
-}
-
-// Um vão pronto pra recortar: deslocamento/peitoril vêm da posição do elemento dele (relativa à
-// origem da parede-mãe), largura/altura são as medidas próprias dele
-interface VaoParaRecorte {
-  deslocamento: number;
-  peitoril: number;
-  largura: number;
-  altura: number;
-}
-
-function vaoParaRecorte(elemento: ElementoEditor): VaoParaRecorte | null {
-  if (!elemento.abertura) return null;
-  return {
-    deslocamento: elemento.posicao.x,
-    peitoril: elemento.posicao.z,
-    largura: elemento.abertura.largura,
-    altura: elemento.abertura.altura,
-  };
-}
-
-// Um retângulo (no plano X/Y local da parede) que sobrou do recorte dos vãos
-interface CelulaParede {
-  x0: number;
-  x1: number;
-  y0: number;
-  y1: number;
-}
-
-// Decompõe a face da parede numa grade (as bordas de cada vão cortam linhas verticais e
-// horizontais) e devolve uma célula por retângulo que não cai dentro de nenhum vão — vira sozinho
-// as vergas (acima), peitoris (abaixo) e ombreiras (dos lados) de cada abertura, sem precisar de
-// nenhuma biblioteca de CSG (o three.js não recorta sólidos nativamente). Usada tanto pra montar
-// a geometria da parede quanto pra checar colisão célula a célula (em vez da caixa inteira),
-// assim um módulo consegue atravessar o vão de verdade, não só visualmente
-function celulasParede(comprimento: number, altura: number, vaosElementos: ElementoEditor[]): CelulaParede[] {
-  const aberturas = vaosElementos.map(vaoParaRecorte).filter((v) => v !== null);
-  const paredeInteira = [{ x0: 0, x1: comprimento, y0: 0, y1: altura }];
-  if (aberturas.length === 0) return paredeInteira;
-
-  const bordasX = new Set([0, comprimento]);
-  const bordasY = new Set([0, altura]);
-  for (const abertura of aberturas) {
-    bordasX.add(Math.min(comprimento, Math.max(0, abertura.deslocamento)));
-    bordasX.add(Math.min(comprimento, Math.max(0, abertura.deslocamento + abertura.largura)));
-    bordasY.add(Math.min(altura, Math.max(0, abertura.peitoril)));
-    bordasY.add(Math.min(altura, Math.max(0, abertura.peitoril + abertura.altura)));
-  }
-  const xs = [...bordasX].sort((a, b) => a - b);
-  const ys = [...bordasY].sort((a, b) => a - b);
-
-  const celulas: CelulaParede[] = [];
-  for (let i = 0; i < xs.length - 1; i++) {
-    for (let j = 0; j < ys.length - 1; j++) {
-      const x0 = xs[i];
-      const x1 = xs[i + 1];
-      const y0 = ys[j];
-      const y1 = ys[j + 1];
-      if (x1 - x0 < 1 || y1 - y0 < 1) continue;
-
-      // O centro da célula decide se ela é parede (sobra) ou vão (é pulada); como as bordas de
-      // toda abertura já viraram linhas da grade, nenhuma célula atravessa a borda de um vão
-      const centroX = (x0 + x1) / 2;
-      const centroY = (y0 + y1) / 2;
-      const dentroDeAlgumVao = aberturas.some(
-        (a) =>
-          centroX > a.deslocamento &&
-          centroX < a.deslocamento + a.largura &&
-          centroY > a.peitoril &&
-          centroY < a.peitoril + a.altura,
-      );
-      if (dentroDeAlgumVao) continue;
-
-      celulas.push({ x0, x1, y0, y1 });
-    }
-  }
-  return celulas.length > 0 ? celulas : paredeInteira;
-}
-
-function criarGeometriaParede({ comprimento, altura, espessura }: Parede, vaosElementos: ElementoEditor[]) {
-  if (vaosElementos.length === 0) return criarCaixaParede(comprimento, altura, espessura);
-
-  const blocos = celulasParede(comprimento, altura, vaosElementos).map((c) => {
-    const bloco = new BoxGeometry(c.x1 - c.x0, c.y1 - c.y0, espessura);
-    bloco.translate(c.x0 + (c.x1 - c.x0) / 2, c.y0 + (c.y1 - c.y0) / 2, 0);
-    return bloco;
-  });
-
-  const geometria = mergeGeometries(blocos) ?? criarCaixaParede(comprimento, altura, espessura);
-  for (const bloco of blocos) bloco.dispose();
-  return geometria;
-}
-
-// Arestas de uma parede com vãos: o contorno de `criarGeometriaParede` é feito de vários blocos
-// colados (um por célula que sobra do recorte, ver celulasParede), e EdgesGeometry não enxerga
-// que as bordas onde dois blocos se tocam são o mesmo plano contínuo — o resultado é um risco
-// (uma aresta "fantasma") em cada costura interna, riscando a parede toda em vez de só contornar
-// o vão. Em vez de calcular as arestas em cima desses blocos, usa o contorno da caixa inteira (sem
-// nenhum recorte, sempre limpo) e desenha o retângulo de cada vão por cima, à mão
-function criarArestasParede(parede: Parede, vaos: ElementoEditor[]): BufferGeometry {
-  const caixa = criarCaixaParede(parede.comprimento, parede.altura, parede.espessura);
-  const base = new EdgesGeometry(caixa, 30);
-  caixa.dispose();
-  if (vaos.length === 0) return base;
-
-  const pontos = [...base.getAttribute('position').array];
-  base.dispose();
-
-  for (const vaoElemento of vaos) {
-    const vao = vaoParaRecorte(vaoElemento);
-    if (!vao) continue;
-    const cantos: [number, number][] = [
-      [vao.deslocamento, vao.peitoril],
-      [vao.deslocamento + vao.largura, vao.peitoril],
-      [vao.deslocamento + vao.largura, vao.peitoril + vao.altura],
-      [vao.deslocamento, vao.peitoril + vao.altura],
-    ];
-    // Um retângulo em cada face (frente e fundo), como uma moldura em volta do vão
-    for (const z of [parede.espessura / 2, -parede.espessura / 2]) {
-      for (let i = 0; i < cantos.length; i++) {
-        const [ax, ay] = cantos[i];
-        const [bx, by] = cantos[(i + 1) % cantos.length];
-        pontos.push(ax, ay, z, bx, by, z);
-      }
-    }
-  }
-
-  const geometria = new BufferGeometry();
-  geometria.setAttribute('position', new Float32BufferAttribute(pontos, 3));
-  return geometria;
-}
-
-// Caixas de colisão de uma parede, uma por célula que sobrou do recorte dos vãos, já em
-// coordenadas do mundo (Box3.applyMatrix4 recalcula os cantos certos mesmo com a parede girada)
-function caixasColisaoParede(objeto: ObjetoElemento, parede: Parede, vaos: ElementoEditor[]): Box3[] {
-  return celulasParede(parede.comprimento, parede.altura, vaos).map((c) =>
-    new Box3(
-      new Vector3(c.x0, c.y0, -parede.espessura / 2),
-      new Vector3(c.x1, c.y1, parede.espessura / 2),
-    ).applyMatrix4(objeto.container.matrixWorld),
-  );
-}
-
-function definirParede(
-  objeto: ObjetoElemento,
-  chave: string,
-  parede: Parede,
-  vaos: ElementoEditor[],
-  comTexturas: boolean,
-) {
-  definirMalha(objeto, chave, criarGeometriaParede(parede, vaos), COR_PAREDE);
-  // Substitui as arestas que definirMalha calculou (em cima dos blocos do recorte, com costuras
-  // fantasma — ver criarArestasParede) pelo contorno limpo
-  if (objeto.arestas) {
-    objeto.arestas.geometry.dispose();
-    objeto.arestas.geometry = criarArestasParede(parede, vaos);
-  }
-  // Com texturas, a geometria é dividida por face (como nos modelos 3D), pra cada face da caixa da
-  // parede (frente, fundo, topo, base, extremidades e laterais dos vãos) ter a sua imagem; as
-  // arestas continuam as da geometria inteira
-  if (comTexturas && objeto.malha) {
-    const inteira = objeto.malha.geometry;
-    objeto.malha.geometry = dividirPorFaces(inteira);
-    inteira.dispose();
-  }
-  objeto.geometriaDividida = comTexturas;
-  objeto.parede = parede;
-  objeto.vaos = vaos;
-}
-
-// Piso: polígono no plano X/Y dos dados (mesma origem em canto, um vértice não precisa ficar em
-// 0,0) extrudado por uma espessura em Z a partir da origem. O Shape usa (x, y) diretamente — sem
-// espelhar o Y — porque extrudar ao longo do eixo local da forma e depois girar -90° em X pra
-// deitá-la já produz o sinal certo (equivale ao SENTIDO_Z de todo o resto da cena)
-function criarGeometriaPiso({ vertices, espessura }: Piso) {
-  const contorno = new Shape(vertices.map((v) => new Vector2(v.x, v.y)));
-  const geometria = new ExtrudeGeometry(contorno, { depth: espessura, bevelEnabled: false });
-  geometria.rotateX(-Math.PI / 2);
-  return geometria;
-}
-
-function definirPiso(objeto: ObjetoElemento, chave: string, piso: Piso, comTexturas: boolean) {
-  definirMalha(objeto, chave, criarGeometriaPiso(piso), COR_PISO);
-  // Com texturas, a geometria é dividida por face (topo, base e bordas), como nas paredes
-  if (comTexturas && objeto.malha) {
-    const inteira = objeto.malha.geometry;
-    objeto.malha.geometry = dividirPorFaces(inteira);
-    inteira.dispose();
-  }
-  objeto.geometriaDividida = comTexturas;
-  objeto.piso = piso;
-}
-
-// Libera só a geometria (cópia própria desta peça, ver extrairMalhaDoCanto) de um `modelo`
-// substituído ou removido; o material é o mesmo objeto do arquivo original, compartilhado com
-// outras extrações da mesma malha (inclusive futuras, do mesmo import) — nunca é descartado
-function descartarGrupoGltf(grupo: Group) {
-  grupo.traverse((objeto) => {
-    if (objeto instanceof Mesh) objeto.geometry.dispose();
-  });
-  grupo.removeFromParent();
-}
-
-// Peça importada de um .glb: carrega de forma assíncrona (GLTFLoader não tem uma versão síncrona)
-// e substitui a malha anterior quando terminar — a árvore pode mudar nesse meio-tempo (o elemento
-// pode ser removido, ou outro carregamento pode começar antes deste terminar), então só aplica o
-// resultado se `objeto` ainda for o carregamento mais recente pedido pra essa peça
-// A malha sempre carrega no tamanho original do arquivo: a escala aplicada é a razão até o
-// tamanho atual do elemento
-function ajustarModelo(objeto: ObjetoElemento) {
-  const { modelo, modeloTamanhoNativo: nativo, tamanhoAlvo: alvo } = objeto;
-  if (!modelo || !nativo || !alvo) return;
-  // `nativo` é medido direto na malha carregada (Box3 sobre o three.js) — sempre Y nativo/altura,
-  // Z nativo/profundidade, como qualquer objeto three.js. `alvo` é o Tamanho dos dados do app,
-  // onde quem é altura é o Z (ver FORMAS[tipo].tamanho) — por isso alvo.z / nativo.y (não alvo.y)
-  modelo.scale.set(alvo.x / (nativo.x || 1), alvo.z / (nativo.y || 1), alvo.y / (nativo.z || 1));
-  definirTexturasModelo(objeto, objeto.texturasAlvo);
-}
-
-const chaveModelo3d = (modelo3d: string, modelo3dNo: string | undefined) => `${modelo3d}#${modelo3dNo ?? ''}`;
-
-function definirModelo3d(objeto: ObjetoElemento, chave: string, modelo3d: string, modelo3dNo: string | undefined) {
-  const carregamento = chaveModelo3d(modelo3d, modelo3dNo);
-  if (objeto.modelo3dCarregando === carregamento) return;
-  objeto.modelo3dCarregando = carregamento;
-
-  extrairMalhaDoCanto(modelo3d, modelo3dNo)
-    .then(({ geometria, material }) => {
-      if (objeto.descartado || objeto.modelo3dCarregando !== carregamento) {
-        geometria.dispose();
-        return;
-      }
-      if (objeto.modelo) {
-        restaurarTexturasModelo(objeto);
-        descartarGrupoGltf(objeto.modelo);
-      }
-      const malha = new Mesh(geometria, material);
-      malha.userData.chave = chave;
-      objeto.modelo = new Group();
-      objeto.modelo.add(malha);
-      const tamanhoNativo = new Box3().setFromObject(objeto.modelo).getSize(new Vector3());
-      objeto.modeloTamanhoNativo = { x: tamanhoNativo.x, y: tamanhoNativo.y, z: tamanhoNativo.z };
-      objeto.container.add(objeto.modelo);
-      ajustarModelo(objeto);
-    })
-    .catch((erro: unknown) => {
-      console.error('Não foi possível carregar o modelo 3D da peça:', erro);
-      if (objeto.modelo3dCarregando === carregamento) objeto.modelo3dCarregando = undefined;
-    });
-}
-
-function aplicarAparencia(objeto: ObjetoElemento, selecionado: boolean, foraDoContexto: boolean) {
-  const { malha, arestas } = objeto;
-  if (!malha || !arestas) return;
-
-  materiaisDe(malha).forEach((material, i) => {
-    const pintura = objeto.texturas?.[i] ?? null;
-    // Cor sólida: cor própria de verdade (não pode virar branco feito imagem, senão desaparece).
-    // Imagem (carregada ou ainda carregando — `material.map` só existe depois de pronta): sem cor
-    // própria (branco), pra ela aparecer fiel quando terminar de carregar. Selecionada, um tom
-    // avermelhado por cima nos dois casos (mais suave que o normal, pra não esconder o conteúdo)
-    if (selecionado) {
-      material.color.setHex(pintura !== null ? COR_SELECIONADA_TEXTURA : COR_SELECIONADA);
-    } else if (pintura !== null && ehCorSolida(pintura)) {
-      material.color.set(pintura);
-    } else if (pintura !== null) {
-      material.color.setHex(0xffffff);
-    } else {
-      material.color.setHex(objeto.corBase ?? COR_PECA);
-    }
-    if (material.transparent !== foraDoContexto) {
-      material.transparent = foraDoContexto;
-      material.depthWrite = !foraDoContexto;
-      material.needsUpdate = true;
-    }
-    material.opacity = foraDoContexto ? OPACIDADE_FORA_DO_CONTEXTO : 1;
-  });
-  // Selecionada: arestas em vermelho forte, contínuas e opacas
-  arestas.material.color.setHex(selecionado ? COR_DESTAQUE_OBJETO : 0x000000);
-  arestas.material.opacity = foraDoContexto ? 0.1 : selecionado ? 1 : 0.3;
-}
-
-// Caixa contínua com as medidas fixas (grupo, ou peça de modelo 3D): `cor` é o azul do grupo ou o
-// vermelho forte do objeto; `discreta` (grupo só aberto pra edição, sem estar selecionado) a deixa
-// mais fraca
-function atualizarCaixaGrupo(
-  objeto: ObjetoElemento,
-  tamanho: Posicao | undefined,
-  visivel: boolean,
-  cor: number,
-  discreta: boolean,
-) {
-  if (!visivel || !tamanho) {
-    if (objeto.caixa) objeto.caixa.visible = false;
-    return;
-  }
-
-  // tamanho.z é a altura nos dados do app; o Y nativo do BoxGeometry é quem precisa dela (ver
-  // criarGeometria acima)
-  const caixa = new BoxGeometry(tamanho.x, tamanho.z, tamanho.y);
-  const geometria = new EdgesGeometry(caixa);
-  caixa.dispose();
-  geometria.translate(tamanho.x / 2, tamanho.z / 2, (SENTIDO_Z * tamanho.y) / 2);
-
-  if (objeto.caixa) {
-    objeto.caixa.geometry.dispose();
-    objeto.caixa.geometry = geometria;
-  } else {
-    objeto.caixa = new LineSegments(geometria, new LineBasicMaterial({ transparent: true }));
-    objeto.container.add(objeto.caixa);
-  }
-
-  objeto.caixa.material.color.setHex(cor);
-  objeto.caixa.material.opacity = discreta ? 0.45 : 1;
-  objeto.caixa.visible = true;
-}
-
-// Etiqueta flutuante (código único e/ou "M-N") no centro da face frontal do módulo — a mesma face
-// onde `criarGeometria`/`atualizarCaixaGrupo` colocam a origem local (y=0); `limitesLocais` já dá
-// o tamanho em qualquer tipo de peça/grupo, então a conta é a mesma nos dois casos
-function definirEtiqueta(objeto: ObjetoElemento, elemento: ElementoEditor, esmaecida: boolean) {
-  const conteudo = `${elemento.idUnico ?? ''}|${elemento.idSequencial ?? ''}`;
-  if (!elemento.idUnico && !elemento.idSequencial) {
-    if (objeto.etiqueta) {
-      objeto.etiqueta.removeFromParent();
-      objeto.etiqueta = undefined;
-      objeto.etiquetaConteudo = undefined;
-    }
-    return;
-  }
-
-  if (!objeto.etiqueta || objeto.etiquetaConteudo !== conteudo) {
-    const html = document.createElement('div');
-    html.className = styles.etiqueta;
-    if (elemento.idUnico) {
-      const codigo = document.createElement('span');
-      codigo.className = styles.etiquetaCodigo;
-      codigo.textContent = elemento.idUnico;
-      html.appendChild(codigo);
-    }
-    if (elemento.idSequencial) {
-      const numero = document.createElement('span');
-      numero.className = styles.etiquetaNumero;
-      numero.textContent = elemento.idSequencial;
-      html.appendChild(numero);
-    }
-
-    objeto.etiqueta?.removeFromParent();
-    objeto.etiqueta = new CSS2DObject(html);
-    objeto.etiquetaConteudo = conteudo;
-
-    const caixa = limitesLocais(elemento);
-    if (caixa) {
-      objeto.etiqueta.position.set((caixa.min.x + caixa.max.x) / 2, (caixa.min.z + caixa.max.z) / 2, 0);
-    }
-    objeto.container.add(objeto.etiqueta);
-  }
-
-  objeto.etiqueta.element.style.opacity = esmaecida ? '0.35' : '1';
-}
-
-// Coordenadas normalizadas (-1..1) do ponteiro dentro do canvas, como o Raycaster espera
-function ponteiroNormalizado(e: { clientX: number; clientY: number }, dom: HTMLElement): Vector2 {
-  const area = dom.getBoundingClientRect();
-  return new Vector2(
-    ((e.clientX - area.left) / area.width) * 2 - 1,
-    -((e.clientY - area.top) / area.height) * 2 + 1,
-  );
-}
-
-// Um container pode estar com visible=true mas dentro de um grupo oculto (visible só reflete o
-// próprio elemento, o three.js não desce essa flag pros filhos); o raycaster também não pula
-// objeto/ancestral invisível sozinho (só afeta o desenho), então tem que checar a cadeia inteira
-// até a raiz da cena
-function visivelNaCena(objeto: Object3D): boolean {
-  for (let atual: Object3D | null = objeto; atual !== null; atual = atual.parent) {
-    if (!atual.visible) return false;
-  }
-  return true;
-}
-
-// Malhas clicáveis de todos os elementos visíveis (peças, paredes, pisos e modelos 3D importados),
-// usada tanto pra selecionar quanto pra medir com a trena
-function malhasVisiveis(objetos: Map<string, ObjetoElemento>): Mesh[] {
-  return [...objetos.values()].flatMap((objeto) => {
-    if (!visivelNaCena(objeto.container)) return [];
-    if (objeto.malha) return [objeto.malha];
-    if (objeto.modelo) {
-      const malhasDoModelo: Mesh[] = [];
-      objeto.modelo.traverse((filho) => {
-        if (filho instanceof Mesh) malhasDoModelo.push(filho);
-      });
-      return malhasDoModelo;
-    }
-    return [];
-  });
-}
-
-// Distância em pixels de tela pra "imantar" a trena num vértice (ver verticeMaisProximo) —
-// generoso o bastante pro dedo no celular, sem grudar sozinho num clique mais afastado
-const LIMIAR_IMA_VERTICE = 24;
-
-// Os 8 cantos da caixa de cada elemento visível (peça, grupo ou parede), em coordenadas de
-// mundo — já considerando rotação, por isso transforma cada canto individualmente em vez de usar
-// Box3().setFromObject (que daria a caixa ALINHADA aos eixos da cena, maior que a peça de verdade
-// se ela estiver girada, com cantos que não existem de verdade)
-function verticesVisiveis(elementos: Record<string, ElementoEditor>, objetos: Map<string, ObjetoElemento>): Vector3[] {
-  const pontos: Vector3[] = [];
-  for (const [chave, elemento] of Object.entries(elementos)) {
-    const objeto = objetos.get(chave);
-    if (!objeto || !visivelNaCena(objeto.container)) continue;
-    const caixa = limitesLocais(elemento);
-    if (!caixa) continue;
-    for (const x of [caixa.min.x, caixa.max.x]) {
-      for (const y of [caixa.min.y, caixa.max.y]) {
-        for (const z of [caixa.min.z, caixa.max.z]) {
-          // z dos dados (altura) -> Y nativo da cena; y dos dados (profundidade) -> Z nativo,
-          // espelhado (mesma fronteira de posicaoCena, mais abaixo)
-          pontos.push(new Vector3(x, z, SENTIDO_Z * y).applyMatrix4(objeto.container.matrixWorld));
-        }
-      }
-    }
-  }
-  return pontos;
-}
-
-// Vértice (dentre `pontos`) mais perto do ponteiro NA TELA, dentro de LIMIAR_IMA_VERTICE — em
-// pixels, não em distância 3D, porque é assim que o olho julga "perto": um canto bem atrás de
-// outra peça, mas alinhado com o clique na tela, ainda deve imantar
-function verticeMaisProximo(
-  pontos: Vector3[],
-  e: { clientX: number; clientY: number },
-  camera: PerspectiveCamera,
-  dom: HTMLElement,
-): Vector3 | null {
-  const area = dom.getBoundingClientRect();
-  const alvoX = e.clientX - area.left;
-  const alvoY = e.clientY - area.top;
-  const projetado = new Vector3();
-  let melhor: Vector3 | null = null;
-  let menorDistancia = LIMIAR_IMA_VERTICE;
-  for (const ponto of pontos) {
-    projetado.copy(ponto).project(camera);
-    if (projetado.z < -1 || projetado.z > 1) continue; // atrás da câmera
-    const px = ((projetado.x + 1) / 2) * area.width;
-    const py = ((1 - projetado.y) / 2) * area.height;
-    const distancia = Math.hypot(px - alvoX, py - alvoY);
-    if (distancia < menorDistancia) {
-      menorDistancia = distancia;
-      melhor = ponto;
-    }
-  }
-  return melhor;
-}
-
-function descartarObjeto(objeto: ObjetoElemento) {
-  // Impede um carregamento de modelo 3D ainda em andamento de aplicar o resultado (ou vazar
-  // memória de GPU) num objeto que já saiu da árvore antes dele terminar
-  objeto.descartado = true;
-  objeto.container.removeFromParent();
-  objeto.malha?.geometry.dispose();
-  if (objeto.malha) {
-    for (const material of materiaisDe(objeto.malha)) {
-      material.map?.dispose();
-      material.dispose();
-    }
-  }
-  objeto.arestas?.geometry.dispose();
-  objeto.arestas?.material.dispose();
-  objeto.caixa?.geometry.dispose();
-  objeto.caixa?.material.dispose();
-  if (objeto.modelo) {
-    restaurarTexturasModelo(objeto);
-    descartarGrupoGltf(objeto.modelo);
-  }
-  // A etiqueta não tem geometria/material de GPU (é só um <div>); remover da cena já basta, e o
-  // próprio CSS2DObject tira o elemento do DOM (ver o listener "removed" da classe)
-  objeto.etiqueta?.removeFromParent();
-}
-
-// Eixos no estilo do SketchUp: contínuos no sentido positivo e tracejados no negativo.
-// A geometria tem comprimento 1; o tamanho real vem da escala do grupo
-function criarEixos(sobrepostos: boolean) {
-  const eixos = new Group();
-  CORES_EIXOS.forEach((cor, indice) => {
-    const direcao = new Vector3().setComponent(indice, indice === 2 ? SENTIDO_Z : 1);
-    const positivo = new Line(
-      new BufferGeometry().setFromPoints([new Vector3(), direcao]),
-      new LineBasicMaterial({ color: cor, depthTest: !sobrepostos }),
-    );
-    const negativo = new Line(
-      new BufferGeometry().setFromPoints([new Vector3(), direcao.clone().negate()]),
-      new LineDashedMaterial({ color: cor, dashSize: 0.03, gapSize: 0.02, depthTest: !sobrepostos }),
-    );
-    negativo.computeLineDistances();
-    // Sobrepostos: desenhados por cima das peças, já que a origem costuma ficar dentro delas
-    positivo.renderOrder = negativo.renderOrder = sobrepostos ? 1 : 0;
-    eixos.add(positivo, negativo);
-  });
-  return eixos;
-}
-
-function descartarEixos(eixos: Group) {
-  eixos.removeFromParent();
-  for (const linha of eixos.children as Line<BufferGeometry, LineBasicMaterial>[]) {
-    linha.geometry.dispose();
-    linha.material.dispose();
-  }
-}
-
-function criarSala(): Sala {
-  const chao = new Mesh(
-    new PlaneGeometry(1, 1),
-    new MeshBasicMaterial({ color: COR_PISO_SALA, transparent: true, opacity: 0.5, side: DoubleSide }),
-  );
-  chao.rotation.x = -Math.PI / 2;
-
-  const caixa = new LineSegments(
-    new BufferGeometry(),
-    new LineDashedMaterial({ color: COR_CAIXA_SALA, transparent: true, opacity: 0.6 }),
-  );
-
-  const grupo = new Group();
-  grupo.add(chao, caixa);
-  grupo.visible = false;
-  return { grupo, chao, caixa };
-}
-
-// Piso e caixa vão do canto (0,0,0) até a planta (largura, pé-direito, profundidade),
-// a mesma convenção de origem usada pelas peças e pelos grupos. planta.z é o pé-direito (altura)
-// nos dados do app; planta.y é a profundidade — o Y/Z nativos do three.js usados aqui embaixo
-// continuam Y=altura/Z=profundidade, como qualquer objeto da cena (ver criarGeometria)
-function atualizarSala(sala: Sala, planta: Posicao | null) {
-  sala.grupo.visible = planta !== null;
-  if (!planta) return;
-
-  sala.chao.geometry.dispose();
-  sala.chao.geometry = new PlaneGeometry(planta.x, planta.y);
-  // Levemente abaixo da grade (y=0), para as duas não disputarem o mesmo plano
-  sala.chao.position.set(planta.x / 2, -0.5, SENTIDO_Z * (planta.y / 2));
-
-  const volume = new BoxGeometry(planta.x, planta.z, planta.y);
-  const geometria = new EdgesGeometry(volume);
-  volume.dispose();
-  geometria.translate(planta.x / 2, planta.z / 2, (SENTIDO_Z * planta.y) / 2);
-  sala.caixa.geometry.dispose();
-  sala.caixa.geometry = geometria;
-
-  const traco = Math.max(planta.x, planta.y, planta.z) / 80;
-  sala.caixa.material.dashSize = traco;
-  sala.caixa.material.gapSize = traco * 0.6;
-  sala.caixa.computeLineDistances();
-}
-
-function descartarSala(sala: Sala) {
-  sala.grupo.removeFromParent();
-  sala.chao.geometry.dispose();
-  sala.chao.material.dispose();
-  sala.caixa.geometry.dispose();
-  sala.caixa.material.dispose();
-}
-
-// Índice do vértice mais próximo de `ponto`, dentro de LIMIAR_FECHAR_CONTORNO; null se nenhum
-function indiceVerticeProximo(pontos: Posicao[], ponto: Posicao): number | null {
-  let melhor: number | null = null;
-  let menorDistancia = LIMIAR_FECHAR_CONTORNO;
-  pontos.forEach((p, indice) => {
-    const d = distanciaXY(p, ponto);
-    if (d <= menorDistancia) {
-      menorDistancia = d;
-      melhor = indice;
-    }
-  });
-  return melhor;
-}
-
-// Índice do segmento (entre pontos[i] e pontos[i+1]) mais próximo de `ponto`: perto o bastante da
-// linha (perpendicular) e projetado dentro do próprio segmento, não perto demais das pontas (que
-// já são tratadas por `indiceVerticeProximo`). Usado pra inserir um vértice no meio de uma parede
-function indiceSegmentoProximo(pontos: Posicao[], ponto: Posicao): number | null {
-  for (let i = 0; i < pontos.length - 1; i++) {
-    const a = pontos[i];
-    const b = pontos[i + 1];
-    const comprimento = distanciaXY(a, b);
-    if (comprimento < MEDIDA_MINIMA) continue;
-
-    const dx = (b.x - a.x) / comprimento;
-    const dy = (b.y - a.y) / comprimento;
-    const projecao = (ponto.x - a.x) * dx + (ponto.y - a.y) * dy;
-    if (projecao < LIMIAR_FECHAR_CONTORNO || projecao > comprimento - LIMIAR_FECHAR_CONTORNO) continue;
-
-    const perpendicular = Math.abs((ponto.x - a.x) * dy - (ponto.y - a.y) * dx);
-    if (perpendicular <= LIMIAR_FECHAR_CONTORNO) return i;
-  }
-  return null;
-}
-
-// Ponto travado no ângulo reto (múltiplo de 90°) mais próximo da direção âncora→ponto, quando
-// estiver a poucos graus dele — mantém a mesma distância, só ajusta a direção. Null se não há
-// ângulo reto perto o bastante (ou a distância é curta demais pro ângulo fazer sentido)
-function calcularTravamento(ancora: Posicao, ponto: Posicao): { ponto: Posicao; diferenca: number } | null {
-  const distancia = distanciaXY(ancora, ponto);
-  if (distancia < MEDIDA_MINIMA) return null;
-
-  const angulo = anguloGraus(ancora, ponto);
-  const anguloTravado = Math.round(angulo / 90) * 90;
-  const diferenca = Math.abs(angulo - anguloTravado);
-  if (diferenca > LIMIAR_TRAVAR_ANGULO) return null;
-
-  const rad = MathUtils.degToRad(anguloTravado);
-  return {
-    ponto: { x: ancora.x + Math.cos(rad) * distancia, y: ancora.y + Math.sin(rad) * distancia, z: 0 },
-    diferenca,
-  };
-}
-
-// Trava a direção âncora→ponto no ângulo reto mais próximo, ou devolve o ponto como veio. Usado
-// pra marcar o próximo canto (só tem uma âncora: o último ponto confirmado). Facilita desenhar
-// paredes alinhadas com os eixos sem precisão de pixel, como a inferência de eixos do SketchUp
-function travarNaLinhaReta(ancora: Posicao, ponto: Posicao): Posicao {
-  return calcularTravamento(ancora, ponto)?.ponto ?? ponto;
-}
-
-// O mesmo travamento, mas pra arrastar um vértice já existente: ele tem até dois vizinhos (o
-// anterior e o seguinte na sequência, ou nenhum nas pontas de um traçado aberto), e trava contra
-// o que tiver o ângulo mais próximo de um reto, pra continuar reto dos dois lados quando possível
-function travarVerticeArrastado(pontos: Posicao[], indice: number, ponto: Posicao, fechado: boolean): Posicao {
-  const anterior = indice > 0 ? pontos[indice - 1] : fechado ? pontos.at(-1) : undefined;
-  const seguinte = indice < pontos.length - 1 ? pontos[indice + 1] : fechado ? pontos[0] : undefined;
-
-  const candidatoAnterior = anterior ? calcularTravamento(anterior, ponto) : null;
-  const candidatoSeguinte = seguinte ? calcularTravamento(seguinte, ponto) : null;
-
-  if (candidatoAnterior && candidatoSeguinte) {
-    return candidatoAnterior.diferenca <= candidatoSeguinte.diferenca
-      ? candidatoAnterior.ponto
-      : candidatoSeguinte.ponto;
-  }
-  return (candidatoAnterior ?? candidatoSeguinte)?.ponto ?? ponto;
-}
-
-// Ao soltar um vértice arrastado perto de um vizinho imediato, funde os dois (remove o arrastado)
-// em vez de só mover — como fechar o contorno, mas pra qualquer par de cantos vizinhos
-function moverOuFundirVertice(pontos: Posicao[], indice: number, novoPonto: Posicao, fechado: boolean): Posicao[] {
-  if (pontos.length > 2) {
-    const antes = indice > 0 ? indice - 1 : fechado ? pontos.length - 1 : null;
-    const depois = indice < pontos.length - 1 ? indice + 1 : fechado ? 0 : null;
-    const pertoDeAntes = antes !== null && distanciaXY(novoPonto, pontos[antes]) <= LIMIAR_FECHAR_CONTORNO;
-    const pertoDeDepois = depois !== null && distanciaXY(novoPonto, pontos[depois]) <= LIMIAR_FECHAR_CONTORNO;
-    if (pertoDeAntes || pertoDeDepois) return pontos.filter((_, i) => i !== indice);
-  }
-  return pontos.map((p, i) => (i === indice ? novoPonto : p));
-}
-
-// Grupo com meshes cujo material é próprio (descartado junto): usado pelos marcadores
-function limparMalhasProprias(grupo: Group) {
-  for (const filho of [...grupo.children]) {
-    if (filho instanceof Mesh) {
-      filho.geometry.dispose();
-      (filho.material as MeshBasicMaterial).dispose();
-    }
-    grupo.remove(filho);
-  }
-}
-
-// Grupo com meshes que compartilham um material externo (só a geometria é descartada aqui)
-function limparGeometrias(grupo: Group) {
-  for (const filho of [...grupo.children]) {
-    if (filho instanceof Mesh) filho.geometry.dispose();
-    grupo.remove(filho);
-  }
-}
-
-function criarDesenhoParede(): DesenhoParede {
-  const materialSegmento = new MeshStandardMaterial({
-    color: COR_PAREDE,
-    transparent: true,
-    opacity: 0.6,
-    depthWrite: false,
-  });
-  const segmentos = new Group();
-
-  const marcadores = new Group();
-
-  const elastico = new Mesh(
-    new BoxGeometry(1, 1, 1),
-    new MeshStandardMaterial({ color: COR_SELECIONADA, transparent: true, opacity: 0.4, depthWrite: false }),
-  );
-  elastico.visible = false;
-
-  const marcadorFechar = new Mesh(
-    new SphereGeometry(90, 16, 12),
-    new MeshBasicMaterial({ color: COR_SELECIONADA, transparent: true, opacity: 0.85 }),
-  );
-  marcadorFechar.visible = false;
-
-  const grupo = new Group();
-  grupo.add(segmentos, marcadores, elastico, marcadorFechar);
-  grupo.visible = false;
-
-  return { grupo, segmentos, materialSegmento, marcadores, elastico, marcadorFechar };
-}
-
-function descartarDesenhoParede(desenho: DesenhoParede) {
-  desenho.grupo.removeFromParent();
-  limparGeometrias(desenho.segmentos);
-  desenho.materialSegmento.dispose();
-  limparMalhasProprias(desenho.marcadores);
-  desenho.elastico.geometry.dispose();
-  desenho.elastico.material.dispose();
-  desenho.marcadorFechar.geometry.dispose();
-  desenho.marcadorFechar.material.dispose();
-}
-
-const COR_TRENA = 0xf5a623;
-// Raio (mm) do marcador de cada ponto da trena
-const RAIO_MARCADOR_TRENA = 15;
-
-function criarDesenhoTrena(): DesenhoTrena {
-  const linha = new Line(new BufferGeometry(), new LineBasicMaterial({ color: COR_TRENA }));
-  const elastico = new Line(new BufferGeometry(), new LineBasicMaterial({ color: COR_TRENA, transparent: true, opacity: 0.6 }));
-  elastico.visible = false;
-  const marcadores = new Group();
-  const etiquetas = new Group();
-
-  const grupo = new Group();
-  grupo.add(linha, elastico, marcadores, etiquetas);
-  grupo.visible = false;
-
-  return { grupo, linha, elastico, marcadores, etiquetas };
-}
-
-// As etiquetas (CSS2DObject) não têm geometria/material de GPU: só sair da cena já basta (o
-// próprio CSS2DObject tira o <div> do DOM, ver o listener "removed" da classe)
-function limparEtiquetas(grupo: Group) {
-  for (const filho of [...grupo.children]) grupo.remove(filho);
-}
-
-function descartarDesenhoTrena(desenho: DesenhoTrena) {
-  desenho.grupo.removeFromParent();
-  desenho.linha.geometry.dispose();
-  desenho.linha.material.dispose();
-  desenho.elastico.geometry.dispose();
-  desenho.elastico.material.dispose();
-  limparMalhasProprias(desenho.marcadores);
-  limparEtiquetas(desenho.etiquetas);
-}
-
-// Rotação guardada (positiva no sentido anti-horário visto da ponta positiva do eixo) para a cena.
-// Z nos dados é altura — vira o Y nativo da cena (vertical, three.js), direto. Y nos dados é
-// profundidade — vira o Z nativo (aponta pra -Z da cena), por isso só esse ângulo troca de sinal
-function aplicarRotacao(objeto: Object3D, rotacao: Rotacao) {
-  objeto.rotation.set(
-    MathUtils.degToRad(rotacao.x),
-    MathUtils.degToRad(rotacao.z),
-    SENTIDO_Z * MathUtils.degToRad(rotacao.y),
-  );
-}
-
-function rotacaoDaCena(objeto: Object3D): Rotacao {
-  const graus = (radianos: number) => normalizarGraus(Math.round(MathUtils.radToDeg(radianos) * 100) / 100);
-  return {
-    x: graus(objeto.rotation.x),
-    y: graus(SENTIDO_Z * objeto.rotation.z),
-    z: graus(objeto.rotation.y),
-  };
-}
-
-function limitarPosicao(valor: number) {
-  return Math.max(-LIMITE_POSICAO, Math.min(LIMITE_POSICAO, Math.round(valor)));
-}
-
-// Distância entre dois pontos em qualquer direção (a trena mede em 3D — ao contrário das paredes,
-// sempre no piso — já que o ponto pode estar em cima de qualquer peça, em qualquer altura)
-function distancia3D(a: Posicao, b: Posicao): number {
-  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
-}
-
-// Colisão: bloqueia o movimento entre dois elementos só quando os DOIS têm colisão ativada
-// (assim, desativar a colisão de um módulo faz ele atravessar tudo, e nada o atravessa também).
-// `alvo` já tem a posição/rotação propostas aplicadas; a caixa é encolhida por uma tolerância
-// para elementos apenas encostados (grudados pelo encaixe) não acusarem colisão entre si
-function haColisao(
-  objetos: Map<string, ObjetoElemento>,
-  elementos: Record<string, ElementoEditor>,
-  chaveMovida: string,
-  alvo: Object3D,
-): boolean {
-  if (!elementos[chaveMovida]?.colisao) return false;
-
-  const caixaMovida = new Box3().setFromObject(alvo);
-  caixaMovida.min.addScalar(TOLERANCIA_COLISAO);
-  caixaMovida.max.addScalar(-TOLERANCIA_COLISAO);
-
-  // O piso também é sólido: nada com colisão ativada atravessa o chão (y=0 no mundo), mesmo
-  // dentro de um grupo elevado (a caixa já está no espaço do mundo, não no do pai)
-  if (caixaMovida.min.y < 0) return true;
-
-  for (const [chave, objeto] of objetos) {
-    const elemento = elementos[chave];
-    if (!elemento?.colisao) continue;
-    // Não compara consigo mesmo, com os próprios filhos, nem com um grupo que o contenha
-    if (estaDentro(elementos, chave, chaveMovida) || estaDentro(elementos, chaveMovida, chave)) continue;
-
-    // Parede com vãos: uma caixa por célula que sobrou do recorte, não a parede inteira — assim
-    // um módulo atravessa o vão de verdade (a caixa geral bateria mesmo passando só pelo buraco)
-    if (elemento.parede) {
-      if (caixasColisaoParede(objeto, elemento.parede, objeto.vaos ?? []).some((c) => caixaMovida.intersectsBox(c))) {
-        return true;
-      }
-      continue;
-    }
-
-    if (caixaMovida.intersectsBox(new Box3().setFromObject(objeto.container))) return true;
-  }
-  return false;
-}
-
-// Depois de corrigir alvo.position (encaixe ou colisão), realinha o estado interno do
-// TransformControls para o arraste continuar suave a partir daqui, em vez de "puxar" o objeto
-// de volta na próxima vez que o mouse se mexer. `pointStart`/`pointEnd`/`_positionStart` não são
-// API pública da biblioteca (checados na versão instalada: object.position = _offset(pointEnd -
-// pointStart) + _positionStart); se uma atualização do three.js remover ou renomear esses campos,
-// o pior efeito é o arraste voltar a puxar por um quadro, sem quebrar
-function reancorarArraste(transform: TransformControls, posicao: Vector3) {
-  const interno = transform as unknown as { pointStart?: Vector3; pointEnd?: Vector3; _positionStart?: Vector3 };
-  interno._positionStart?.copy(posicao);
-  if (interno.pointStart && interno.pointEnd) interno.pointStart.copy(interno.pointEnd);
-}
-
-// Posiciona a câmera para mostrar o objeto (e o extra, se houver) inteiros;
-// devolve false se não há o que mostrar
-function enquadrar({ camera, controls }: Cena, objeto: Object3D, extra?: Object3D) {
-  const caixa = new Box3().setFromObject(objeto);
-  if (extra) caixa.union(new Box3().setFromObject(extra));
-  if (caixa.isEmpty()) return false;
-
-  const centro = caixa.getCenter(new Vector3());
-  const raio = caixa.getBoundingSphere(new Sphere()).radius;
-  const distancia = (raio / Math.sin((camera.fov * Math.PI) / 360)) * 1.1;
-  const direcao = new Vector3(1, 0.7, 1.3).normalize();
-
-  camera.position.copy(centro).addScaledVector(direcao, distancia);
-  camera.near = distancia / 100;
-  camera.far = distancia * 100;
-  camera.updateProjectionMatrix();
-  controls.target.copy(centro);
-  controls.update();
-  return true;
-}
-
 export default function ModuloViewport({
   elementos,
   planta,
@@ -1375,15 +202,42 @@ export default function ModuloViewport({
   const ferramentaRef = useRef(ferramenta);
   // Última posição do arraste sem colisão, para "segurar" o elemento nela ao encostar num sólido
   const ultimaPosicaoValidaRef = useRef(new Vector3());
+  // Shift segurado: a colisão do elemento movido fica desativada até soltar (ver objectChange)
+  const shiftSeguradoRef = useRef(false);
+  useEffect(() => {
+    const atualizar = (e: KeyboardEvent | PointerEvent) => {
+      shiftSeguradoRef.current = e.shiftKey;
+    };
+    const soltar = () => {
+      shiftSeguradoRef.current = false;
+    };
+    // pointermove em captura: roda antes do TransformControls tratar o mesmo movimento
+    window.addEventListener('keydown', atualizar);
+    window.addEventListener('keyup', atualizar);
+    window.addEventListener('pointermove', atualizar, true);
+    window.addEventListener('blur', soltar);
+    return () => {
+      window.removeEventListener('keydown', atualizar);
+      window.removeEventListener('keyup', atualizar);
+      window.removeEventListener('pointermove', atualizar, true);
+      window.removeEventListener('blur', soltar);
+    };
+  }, []);
 
   // Construtor de paredes: cantos já confirmados (clique a clique) e ponto sob o mouse no piso,
   // ambos em coordenadas de dados (mm, y sempre 0); zerados sempre que a ferramenta muda
   const [pontosParede, setPontosParede] = useState<Posicao[]>([]);
   const [mouseNoChao, setMouseNoChao] = useState<Posicao | null>(null);
   const [espessuraParede, setEspessuraParede] = useState(ESPESSURA_PADRAO_PAREDE);
+  // Em que ponto da espessura os cantos clicados ficam: no eixo da parede (central) ou numa das faces.
+  // Só vale ao desenhar do zero; reeditar um contorno já pronto trabalha direto no eixo (ver abaixo)
+  const [alinhamentoSelecionado, setAlinhamentoSelecionado] = useState<AlinhamentoParede>('central');
   // Campo "Distância": Ctrl foca ele sem precisar clicar (ver aoTeclar), mantendo a direção que o
   // cursor já está apontando — só digita o comprimento e Enter
   const distanciaParedeInputRef = useRef<HTMLInputElement>(null);
+  // Já digitou algo no campo de extensão desde que ele ganhou o foco? Enquanto não, Enter e Esc
+  // continuam valendo como atalhos da ferramenta (concluir / cancelar) mesmo com o campo focado
+  const digitouNaExtensaoRef = useRef(false);
   // Vértice sendo arrastado no momento (posição provisória, só aplicada de verdade ao soltar);
   // separado de `pontosParede` pra não precisar recriar os listeners de ponteiro a cada quadro
   const [verticeArrastado, setVerticeArrastado] = useState<{ indice: number; posicao: Posicao } | null>(null);
@@ -1425,9 +279,51 @@ export default function ModuloViewport({
   // só na visualização (não mexe em elemento.visivel, não marca o projeto como alterado)
   const [chaveEmFoco, setChaveEmFoco] = useState<string | null>(null);
 
+  // Vista do botão Enquadrar (o menu ao lado escolhe; o botão repete a última escolhida)
+  const [vistaDoEnquadramento, setVistaDoEnquadramento] = useState<VistaId>('isometrica');
+  const [menuDeVistasAberto, setMenuDeVistasAberto] = useState(false);
+  const vistasRef = useRef<HTMLDivElement>(null);
+  const menuVistasRef = useRef<HTMLDivElement>(null);
+  // O menu é desenhado num portal no <body>, fora do viewport: o viewport é um contexto de
+  // empilhamento próprio (z-index 0, abaixo dos painéis laterais), então um menu de dentro dele
+  // ficaria por baixo do painel de propriedades. Daí a posição fixa, calculada a partir do botão
+  const [posicaoMenuVistas, setPosicaoMenuVistas] = useState<{ direita: number; baixo: number } | null>(null);
+  function alternarMenuDeVistas() {
+    if (menuDeVistasAberto) {
+      setMenuDeVistasAberto(false);
+      return;
+    }
+    const caixa = vistasRef.current?.getBoundingClientRect();
+    if (!caixa) return;
+    setPosicaoMenuVistas({ direita: window.innerWidth - caixa.right, baixo: window.innerHeight - caixa.top + 6 });
+    setMenuDeVistasAberto(true);
+  }
+  useEffect(() => {
+    if (!menuDeVistasAberto) return;
+    const fechar = () => setMenuDeVistasAberto(false);
+    const fecharAoClicarFora = (e: PointerEvent) => {
+      const alvo = e.target as Node;
+      if (!vistasRef.current?.contains(alvo) && !menuVistasRef.current?.contains(alvo)) fechar();
+    };
+    const fecharComEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') fechar();
+    };
+    document.addEventListener('pointerdown', fecharAoClicarFora);
+    document.addEventListener('keydown', fecharComEsc);
+    window.addEventListener('resize', fechar);
+    return () => {
+      document.removeEventListener('pointerdown', fecharAoClicarFora);
+      document.removeEventListener('keydown', fecharComEsc);
+      window.removeEventListener('resize', fechar);
+    };
+  }, [menuDeVistasAberto]);
+
+  const selecaoExtraRef = useRef(selecaoExtra);
+
   useEffect(() => {
     elementosRef.current = elementos;
-  }, [elementos]);
+    selecaoExtraRef.current = selecaoExtra;
+  }, [elementos, selecaoExtra]);
 
   // Sai do foco sozinho se o módulo focado deixar de existir (excluído, ou undo/redo) — senão a
   // condição de foco nunca bate com nada e a cena inteira fica escondida
@@ -1482,8 +378,15 @@ export default function ModuloViewport({
     const objetos = objetosRef.current;
 
     const renderer = new WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
+    // Limitado a 2: celulares chegam a 3 e o buffer do canvas cresce com o quadrado disso, o que
+    // facilita o navegador derrubar o contexto WebGL ao redimensionar (abrir/fechar uma gaveta)
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
+    // Sem o preventDefault o navegador nunca restaura um contexto WebGL perdido (comum em celular, com
+    // a aba em segundo plano ou pouca memória) e o canvas fica branco pra sempre; com ele, o próprio
+    // three.js refaz o estado quando o contexto volta e o laço de animação continua desenhando
+    const aoPerderContexto = (e: Event) => e.preventDefault();
+    renderer.domElement.addEventListener('webglcontextlost', aoPerderContexto);
 
     // Etiquetas dos módulos (ver definirEtiqueta): um <div> por cima do canvas, com um <div>
     // sobreposto por etiqueta, posicionado a cada quadro pelo próprio CSS2DRenderer
@@ -1518,6 +421,8 @@ export default function ModuloViewport({
     controls.zoomToCursor = true;
     controls.target.set(0, 400, 0);
     controls.update();
+    // Zoom e giro mudam a distância até o alvo: os planos de corte vão junto (ver vistas.ts)
+    controls.addEventListener('change', () => ajustarPlanosDeCorte(camera, controls.target));
 
     const raiz = new Group();
     scene.add(raiz);
@@ -1534,6 +439,12 @@ export default function ModuloViewport({
     const trena = criarDesenhoTrena();
     scene.add(trena.grupo);
 
+    // Etiquetas de distância até o vizinho colidível mais próximo, mostradas só durante o
+    // arraste de um elemento com colisão ativada pela ferramenta Mover (ver objectChange abaixo)
+    const distancias = new Group();
+    distancias.visible = false;
+    scene.add(distancias);
+
     // Setas de X, Y e Z para mover o elemento selecionado
     const transform = new TransformControls(camera, renderer.domElement);
     transform.setTranslationSnap(PASSO_MOVIMENTO);
@@ -1543,6 +454,10 @@ export default function ModuloViewport({
     transform.addEventListener('dragging-changed', (e) => {
       controls.enabled = !e.value;
       if (e.value && transform.object) ultimaPosicaoValidaRef.current.copy(transform.object.position);
+      if (!e.value) {
+        limparEtiquetas(distancias);
+        distancias.visible = false;
+      }
     });
     transform.addEventListener('objectChange', () => {
       const alvo = transform.object;
@@ -1561,28 +476,91 @@ export default function ModuloViewport({
         limitarPosicao(alvo.position.z),
       );
 
+      // Os outros elementos da seleção múltipla (e tudo que está dentro deles: um módulo é um grupo
+      // de várias peças, cada uma sólida) se movem junto com este, como um conjunto: entre si não
+      // há colisão, medição de espaço nem encaixe — senão arrastar um contra o outro travaria e
+      // mostraria 0 cm. O conjunto inteiro colide com o que está FORA da seleção (ver abaixo)
+      const todos = elementosRef.current;
+      const raizesCompanheiras = selecaoExtraRef.current.filter((c) => c !== chave && todos[c]);
+      const companheiros = new Set(
+        // As cópias do próprio elemento (dobradiças, prateleiras...) não contam como obstáculo dele
+        Object.keys(todos).filter((c) => {
+          const referencia = todos[chave].referenciaEstavel;
+          const copiaDoMovido = !!referencia && todos[c].copiaDe === referencia && todos[c].pai === todos[chave].pai;
+          return c !== chave && (copiaDoMovido || raizesCompanheiras.some((r) => estaDentro(todos, c, r)));
+        }),
+      );
+      const semColisao = (conjunto: Set<string>): Record<string, ElementoEditor> =>
+        Object.fromEntries(Object.entries(todos).map(([c, e]) => [c, conjunto.has(c) ? { ...e, colisao: false } : e]));
+      const elementosAtuais = companheiros.size ? semColisao(companheiros) : todos;
+
       // Encaixe: gruda numa face de um irmão do mesmo grupo, se estiver perto o bastante. Z dos
       // dados é o Y nativo da cena (altura); Y dos dados é o Z nativo (profundidade, espelhado)
-      const elementosAtuais = elementosRef.current;
       const posicaoBruta = { x: alvo.position.x, y: (SENTIDO_Z * alvo.position.z) || 0, z: alvo.position.y };
-      const posicaoComEncaixe = calcularEncaixe({ elementos: elementosAtuais, filhos: {} }, chave, posicaoBruta);
+      const posicaoComEncaixe = calcularEncaixe({ elementos: elementosAtuais, filhos: {} }, chave, posicaoBruta, companheiros);
       alvo.position.set(posicaoComEncaixe.x, posicaoComEncaixe.z, SENTIDO_Z * posicaoComEncaixe.y);
 
-      // Colisão: barra o movimento que sobreporia outro elemento também sólido, "segurando"
-      // o elemento na última posição válida e reancorando o arraste a partir dali
-      alvo.updateWorldMatrix(true, true);
-      if (haColisao(objetosRef.current, elementosAtuais, chave, alvo)) {
-        alvo.position.copy(ultimaPosicaoValidaRef.current);
+      // Colisão: barra o movimento que sobreporia outro elemento também sólido. Vale pro elemento e,
+      // numa seleção múltipla, pro conjunto todo: cada elemento da seleção, deslocado do mesmo tanto
+      // que o principal, não pode bater em nada fora da seleção
+      let ambienteDoConjunto: Record<string, ElementoEditor> | null = null;
+      const colide = () => {
+        // Shift: atravessa tudo, como se o elemento não tivesse colisão enquanto for segurado
+        if (shiftSeguradoRef.current) return false;
+        alvo.updateWorldMatrix(true, true);
+        if (haColisao(objetosRef.current, elementosAtuais, chave, alvo)) return true;
+        if (raizesCompanheiras.length === 0 || !alvo.parent) return false;
+
+        const deslocamento = alvo.parent
+          .localToWorld(alvo.position.clone())
+          .sub(alvo.parent.localToWorld(ultimaPosicaoValidaRef.current.clone()));
+        ambienteDoConjunto ??= semColisao(
+          new Set([...companheiros, chave, ...Object.keys(todos).filter((c) => estaDentro(todos, c, chave))]),
+        );
+        return raizesCompanheiras.some((c) =>
+          haColisaoDeslocada(objetosRef.current, ambienteDoConjunto as Record<string, ElementoEditor>, !!todos[c].colisao, c, deslocamento),
+        );
+      };
+
+      if (colide()) {
+        // Em vez de voltar pra posição do evento anterior (o que deixava um vão do tamanho do passo
+        // do mouse, maior quanto mais rápido o arraste), encosta no obstáculo: eixo por eixo, a
+        // partir da última posição livre, vai até onde der — tenta o eixo inteiro e, se bater,
+        // procura por bissecção o ponto mais longe ainda livre. Eixo por eixo também deixa o
+        // elemento deslizar ao longo de uma parede em vez de travar
+        const proposta = alvo.position.clone();
+        const aceita = ultimaPosicaoValidaRef.current.clone();
+        for (const eixo of ['x', 'y', 'z'] as const) {
+          alvo.position.copy(aceita);
+          alvo.position[eixo] = proposta[eixo];
+          if (!colide()) {
+            aceita[eixo] = proposta[eixo];
+            continue;
+          }
+          let livre = aceita[eixo];
+          let batida = proposta[eixo];
+          for (let i = 0; i < 16; i++) {
+            const meio = (livre + batida) / 2;
+            alvo.position.copy(aceita);
+            alvo.position[eixo] = meio;
+            if (colide()) batida = meio;
+            else livre = meio;
+          }
+          aceita[eixo] = livre;
+        }
+        alvo.position.copy(aceita);
         alvo.updateWorldMatrix(true, true);
         reancorarArraste(transform, alvo.position);
-        return;
       }
+
       ultimaPosicaoValidaRef.current.copy(alvo.position);
+      atualizarEtiquetasDistanciaDoArraste(distancias, objetosRef.current, elementosAtuais, chave, alvo, styles.etiquetaDistancia);
 
       callbacksRef.current.onTransformar(chave, {
         posicao: { x: alvo.position.x, y: (SENTIDO_Z * alvo.position.z) || 0, z: alvo.position.y },
       });
     });
+    transform.setColors(CORES_EIXOS[0], CORES_EIXOS[1], CORES_EIXOS[2], COR_MANIPULADOR_ATIVO);
     scene.add(transform.getHelper());
 
     // Eixos do ambiente na origem, 1 mm acima do piso para não disputar com a grade; vão até a
@@ -1615,10 +593,16 @@ export default function ModuloViewport({
 
     const redimensionar = () => {
       const { clientWidth: largura, clientHeight: altura } = container;
+      // Contêiner sem tamanho (ex.: escondido ou espremido): mantém o último tamanho bom, senão o
+      // aspecto vira Infinity/NaN e a câmera para de renderizar
+      if (largura === 0 || altura === 0) return;
       renderer.setSize(largura, altura);
       labelRenderer.setSize(largura, altura);
       camera.aspect = largura / altura;
       camera.updateProjectionMatrix();
+      // Redimensionar o canvas o limpa: redesenha já, em vez de esperar o próximo quadro do laço
+      renderer.render(scene, camera);
+      labelRenderer.render(scene, camera);
     };
     const observer = new ResizeObserver(redimensionar);
     observer.observe(container);
@@ -1654,17 +638,31 @@ export default function ModuloViewport({
     renderer.domElement.addEventListener('pointerup', aoSoltar);
     renderer.domElement.addEventListener('dblclick', aoDuploClique);
 
+    // O three.js só agenda o próximo quadro DEPOIS de executar este callback: uma exceção num único
+    // quadro (geometria inválida, textura que falhou...) mataria o laço pra sempre e o canvas ficaria
+    // congelado — e branco depois do próximo redimensionamento. Por isso o try/catch: o erro vai
+    // pro console (uma vez por mensagem, pra não inundar) e o laço segue
+    const errosJaVistos = new Set<string>();
     renderer.setAnimationLoop(() => {
-      controls.update();
-      // Mantém os eixos na origem do alvo, inclusive durante o arraste das setas
-      cena.alvoEixos?.getWorldPosition(eixosSelecao.position);
-      cena.alvoEixos?.getWorldQuaternion(eixosSelecao.quaternion);
-      renderer.render(scene, camera);
-      labelRenderer.render(scene, camera);
+      try {
+        controls.update();
+        // Mantém os eixos na origem do alvo, inclusive durante o arraste das setas
+        cena.alvoEixos?.getWorldPosition(eixosSelecao.position);
+        cena.alvoEixos?.getWorldQuaternion(eixosSelecao.quaternion);
+        renderer.render(scene, camera);
+        labelRenderer.render(scene, camera);
+      } catch (erro) {
+        const mensagem = erro instanceof Error ? erro.message : String(erro);
+        if (!errosJaVistos.has(mensagem)) {
+          errosJaVistos.add(mensagem);
+          console.error('Erro ao desenhar um quadro da cena 3D (o desenho continua):', erro);
+        }
+      }
     });
 
     return () => {
       renderer.setAnimationLoop(null);
+      renderer.domElement.removeEventListener('webglcontextlost', aoPerderContexto);
       renderer.domElement.removeEventListener('pointerdown', aoPressionar);
       renderer.domElement.removeEventListener('pointerup', aoSoltar);
       renderer.domElement.removeEventListener('dblclick', aoDuploClique);
@@ -1680,6 +678,8 @@ export default function ModuloViewport({
       descartarSala(sala);
       descartarDesenhoParede(parede);
       descartarDesenhoTrena(trena);
+      distancias.removeFromParent();
+      limparEtiquetas(distancias);
       descartarEixos(eixosAmbiente);
       descartarEixos(eixosSelecao);
       renderer.dispose();
@@ -1716,8 +716,9 @@ export default function ModuloViewport({
           objeto.vaos.some((v, i) => v !== vaosDaParede[i]));
       const comTexturas = (!!parede || !!piso) && Object.keys(elemento.texturas ?? {}).length > 0;
       // Medidas inválidas (ex.: campo sendo digitado) mantêm a última forma válida
-      if (forma && forma !== objeto.forma && parametrosValidos(forma.tipo, forma.parametros)) {
-        definirForma(objeto, elemento.chave, forma);
+      const furacao = elemento.categoria === 'furacao';
+      if (forma && (forma !== objeto.forma || furacao !== !!objeto.furacao) && parametrosValidos(forma.tipo, forma.parametros)) {
+        definirForma(objeto, elemento.chave, forma, furacao);
       } else if (
         parede &&
         (parede !== objeto.parede || vaosMudaram || comTexturas !== !!objeto.geometriaDividida) &&
@@ -1878,6 +879,7 @@ export default function ModuloViewport({
   }, [elementos, planta, selecionada, selecaoExtra, contexto, ferramenta, chaveEdicaoParede, explodido, chaveEmFoco]);
 
   const alturaParedes = alturaEdicaoParede ?? planta?.z ?? PE_DIREITO_PADRAO;
+  const alinhamentoParede: AlinhamentoParede = chaveEdicaoParede ? 'central' : alinhamentoSelecionado;
 
   // Construtor de paredes: clique no piso da cena 3D (câmera livre para orbitar entre os
   // cliques, como no resto do editor) marca um canto; Enter conclui, clique perto do primeiro
@@ -2024,6 +1026,7 @@ export default function ModuloViewport({
     };
     const aoSairDaArea = () => setMouseNoChao(null);
 
+    // Atalhos da ferramenta Parede — se mudar algum, atualize a página de ajuda (pages/public/Ajuda/conteudo.ts)
     function aoTeclar(e: KeyboardEvent) {
       // Ctrl funciona mesmo com o campo de distância já focado (pra reselecionar o texto antes do
       // próximo número) — só não faz nada se o foco estiver em OUTRO campo (ex.: Espessura), pra
@@ -2034,11 +1037,24 @@ export default function ModuloViewport({
         const foco = document.activeElement;
         if (!campo || (foco instanceof HTMLInputElement && foco !== campo)) return;
         e.preventDefault();
+        digitouNaExtensaoRef.current = false;
         campo.focus();
         campo.select();
         return;
       }
-      if (document.activeElement instanceof HTMLInputElement) return;
+      const foco = document.activeElement;
+      if (foco !== null && foco === distanciaParedeInputRef.current) {
+        // Digitando no campo de extensão: as teclas são dele. Só Enter/Esc sem nada digitado (ou o
+        // Enter/Esc logo depois de confirmar) passam adiante como atalhos da ferramenta
+        if (e.key !== 'Enter' && e.key !== 'Escape') {
+          digitouNaExtensaoRef.current = true;
+          return;
+        }
+        if (digitouNaExtensaoRef.current) {
+          digitouNaExtensaoRef.current = false;
+          return;
+        }
+      } else if (foco instanceof HTMLInputElement) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         callbacksRef.current.onCancelarParede();
@@ -2109,6 +1125,7 @@ export default function ModuloViewport({
     const aoMoverMouse = (e: PointerEvent) => setMouseTrena(pontoDeMedicao(e));
     const aoSairDaArea = () => setMouseTrena(null);
 
+    // Atalhos da ferramenta Trena — se mudar algum, atualize a página de ajuda (pages/public/Ajuda/conteudo.ts)
     function aoTeclar(e: KeyboardEvent) {
       if (document.activeElement instanceof HTMLInputElement) return;
       if (e.key === 'Escape') {
@@ -2185,7 +1202,7 @@ export default function ModuloViewport({
       return;
     }
     callbacksRef.current.onConcluirParedes(
-      pontosParede,
+      pontosDoEixoDaParede(pontosParede, fecharContorno, espessuraParede, alinhamentoParede),
       fecharContorno,
       { altura: alturaParedes, espessura: espessuraParede },
       chaveEdicaoParede,
@@ -2205,27 +1222,27 @@ export default function ModuloViewport({
     );
   }
 
-  // Marca o próximo canto a uma distância digitada, na direção em que o mouse já está apontando
-  // (a mesma do segmento elástico) — como no SketchUp, digitar o comprimento em vez de acertar o
-  // clique exatamente onde quer. Fecha o contorno em vez de marcar um canto se o ponto calculado
-  // cair perto do primeiro, igual a um clique ali
-  function confirmarDistanciaParede(distanciaMm: number) {
-    const ultimo = pontosParede.at(-1);
-    if (!ultimo || !mouseNoChao) return;
-    const direcao = { x: mouseNoChao.x - ultimo.x, y: mouseNoChao.y - ultimo.y };
-    const comprimento = Math.hypot(direcao.x, direcao.y);
-    if (comprimento < 1e-6) return;
-    const ponto: Posicao = {
-      x: limitarPosicao(ultimo.x + (direcao.x / comprimento) * distanciaMm),
-      y: limitarPosicao(ultimo.y + (direcao.y / comprimento) * distanciaMm),
+  // Muda a extensão da última parede marcada (do penúltimo ao último canto): o último canto anda
+  // ao longo da mesma direção até a extensão digitada. A extensão só se digita depois do segundo
+  // canto — o segundo é marcado por clique, que define a direção; daí em diante o número manda.
+  // Mexer no último canto desfaz o engate dele numa parede existente (ele não está mais lá)
+  function estenderUltimaParede(extensaoMm: number): boolean {
+    if (pontosParede.length < 2) return false;
+    const ultimo = pontosParede[pontosParede.length - 1];
+    const penultimo = pontosParede[pontosParede.length - 2];
+    const dx = ultimo.x - penultimo.x;
+    const dy = ultimo.y - penultimo.y;
+    const comprimento = Math.hypot(dx, dy);
+    if (comprimento < 1e-6) return false;
+
+    const novo: Posicao = {
+      x: limitarPosicao(penultimo.x + (dx / comprimento) * extensaoMm),
+      y: limitarPosicao(penultimo.y + (dy / comprimento) * extensaoMm),
       z: 0,
     };
-    if (pontosParede.length > 1 && distanciaXY(ponto, pontosParede[0]) <= LIMIAR_FECHAR_CONTORNO) {
-      concluirDesenhoParede(true);
-      return;
-    }
     setEngateFim(null);
-    setPontosParede((atual) => [...atual, ponto]);
+    setPontosParede((atual) => [...atual.slice(0, -1), novo]);
+    return true;
   }
 
   // Redesenha a pré-visualização (blocos confirmados, marcadores e o segmento elástico até o
@@ -2250,10 +1267,11 @@ export default function ModuloViewport({
     // mostra a parede de fechamento também, não só as pontas soltas de um desenho novo. Os
     // engates nas pontas (ver aplicarEngatesNasPontas) já entram aqui, pra pré-visualização bater
     // com o resultado final — sem isso, pareceria que a parede interna atravessa a de fora
+    const pontosDoEixo = pontosDoEixoDaParede(pontosExibidos, fechadoInicial, espessuraParede, alinhamentoParede);
     const segmentosPreview = fechadoInicial
-      ? construirSegmentosParede(pontosExibidos, true, espessuraParede)
+      ? construirSegmentosParede(pontosDoEixo, true, espessuraParede)
       : aplicarEngatesNasPontas(
-          construirSegmentosParede(pontosExibidos, false, espessuraParede),
+          construirSegmentosParede(pontosDoEixo, false, espessuraParede),
           engateInicio ?? undefined,
           engateFim ?? undefined,
         );
@@ -2296,7 +1314,14 @@ export default function ModuloViewport({
         { comprimento: comprimentoElastico, altura: alturaParedes, espessura: espessuraParede },
         [],
       );
-      elastico.position.set(ultimoPonto.x, 0, SENTIDO_Z * ultimoPonto.y);
+      const origemElastico = deslocarTrechoParaOEixo(
+        ultimoPonto,
+        mouseNoChao,
+        pontosExibidos,
+        espessuraParede,
+        alinhamentoParede,
+      );
+      elastico.position.set(origemElastico.x, 0, SENTIDO_Z * origemElastico.y);
       elastico.rotation.y = MathUtils.degToRad(anguloGraus(ultimoPonto, mouseNoChao));
       elastico.visible = true;
     } else {
@@ -2312,6 +1337,7 @@ export default function ModuloViewport({
     fechadoInicial,
     alturaParedes,
     espessuraParede,
+    alinhamentoParede,
     ferramenta,
     chaveEdicaoParede,
     engateInicio,
@@ -2377,13 +1403,19 @@ export default function ModuloViewport({
     }
   }
 
-  function enquadrarAtual() {
+  function enquadrarAtual(vista: VistaId = vistaDoEnquadramento) {
     const cena = cenaRef.current;
     if (!cena) return;
-    // Com um grupo aberto, enquadra só o grupo; na raiz, a árvore inteira e a planta do ambiente
+    // Com algo selecionado (um elemento ou vários), enquadra a seleção
+    const selecionados = (selecionada ? [selecionada, ...selecaoExtra] : [])
+      .map((chave) => objetosRef.current.get(chave)?.container)
+      .filter((container): container is Group => !!container);
+    if (selecionados.length > 0 && enquadrar(cena, selecionados, undefined, vista)) return;
+
+    // Sem seleção: com um grupo aberto, enquadra só o grupo; na raiz, a árvore inteira e a planta do ambiente
     const grupo = contexto ? objetosRef.current.get(contexto)?.container : undefined;
-    if (!grupo || !enquadrar(cena, grupo)) {
-      enquadrar(cena, cena.raiz, planta ? cena.sala.grupo : undefined);
+    if (!grupo || !enquadrar(cena, grupo, undefined, vista)) {
+      enquadrar(cena, cena.raiz, planta ? cena.sala.grupo : undefined, vista);
     }
   }
 
@@ -2418,7 +1450,33 @@ export default function ModuloViewport({
     (distanciaSegmentoTrena ?? 0);
 
   const ultimoPontoParede = chaveEdicaoParede ? undefined : pontosParede.at(-1);
+  // Distância do último canto até o mouse (só informativa: antes do segundo canto o clique define tudo)
   const distanciaAtual = ultimoPontoParede && mouseNoChao ? distanciaXY(ultimoPontoParede, mouseNoChao) : null;
+  // Extensão da última parede já marcada, a que o campo digitável edita (existe a partir do 2º canto)
+  const extensaoUltimaParede =
+    !chaveEdicaoParede && pontosParede.length >= 2
+      ? distanciaXY(pontosParede[pontosParede.length - 2], pontosParede[pontosParede.length - 1])
+      : null;
+  // A cada canto novo (do segundo em diante), o foco vai pro campo de extensão, pra digitar o
+  // comprimento direto (Ctrl faz o mesmo depois). Um instante de espera: o clique que marcou o canto
+  // ainda termina de tratar o foco (mousedown) e tiraria o foco do campo recém-focado. Remover um
+  // canto (Backspace) não puxa o foco
+  const totalCantosParede = chaveEdicaoParede ? 0 : pontosParede.length;
+  const totalCantosAnteriorRef = useRef(0);
+  useEffect(() => {
+    const anterior = totalCantosAnteriorRef.current;
+    totalCantosAnteriorRef.current = totalCantosParede;
+    if (ferramenta !== 'parede' || totalCantosParede < 2 || totalCantosParede <= anterior) return;
+    const espera = window.setTimeout(() => {
+      const campo = distanciaParedeInputRef.current;
+      if (!campo) return;
+      digitouNaExtensaoRef.current = false;
+      campo.focus();
+      campo.select();
+    }, 60);
+    return () => window.clearTimeout(espera);
+  }, [ferramenta, totalCantosParede]);
+
   const fechandoContorno =
     !chaveEdicaoParede &&
     mouseNoChao !== null &&
@@ -2429,9 +1487,57 @@ export default function ModuloViewport({
     <div className={styles.viewport}>
       <div ref={containerRef} className={styles.canvas} />
       <div className={styles.acoes}>
-        <button type="button" className={styles.botao} onClick={enquadrarAtual}>
-          Enquadrar
-        </button>
+        <div ref={vistasRef} className={styles.vistas}>
+          <button
+            type="button"
+            className={styles.botao}
+            title={`Enquadrar na vista ${VISTAS[vistaDoEnquadramento].rotulo.toLowerCase()}`}
+            onClick={() => enquadrarAtual()}
+          >
+            Enquadrar
+            {vistaDoEnquadramento !== 'isometrica' ? ` · ${VISTAS[vistaDoEnquadramento].rotulo}` : ''}
+          </button>
+          <button
+            type="button"
+            className={styles.botao}
+            aria-haspopup="menu"
+            aria-expanded={menuDeVistasAberto}
+            aria-label="Escolher a vista do enquadramento"
+            title="Escolher a vista: topo, base, frente, fundo, esquerda, direita"
+            onClick={alternarMenuDeVistas}
+          >
+            ▾
+          </button>
+          {menuDeVistasAberto &&
+            posicaoMenuVistas &&
+            createPortal(
+              <div
+                ref={menuVistasRef}
+                className={styles.menuVistas}
+                role="menu"
+                aria-label="Vista do enquadramento"
+                style={{ right: posicaoMenuVistas.direita, bottom: posicaoMenuVistas.baixo }}
+              >
+                {ORDEM_DAS_VISTAS.map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={vistaDoEnquadramento === id}
+                    className={styles.itemVista}
+                    onClick={() => {
+                      setVistaDoEnquadramento(id);
+                      setMenuDeVistasAberto(false);
+                      enquadrarAtual(id);
+                    }}
+                  >
+                    {VISTAS[id].rotulo}
+                  </button>
+                ))}
+              </div>,
+              document.body,
+            )}
+        </div>
         <button
           type="button"
           className={styles.botao}
@@ -2448,7 +1554,7 @@ export default function ModuloViewport({
           <p className={`${styles.dicaParede} ${styles.dicaConstrutorParede}`}>
             {chaveEdicaoParede
               ? 'Arraste um canto para movê-lo · clique numa parede insere um canto ali · arraste um canto até o vizinho remove · clique perto do início fecha'
-              : 'Clique no piso para marcar os cantos · clique perto do início fecha o contorno'}
+              : 'Clique no piso para marcar os cantos · depois do segundo, digite a extensão da última parede · clique perto do início fecha o contorno'}
           </p>
           <div className={styles.linhaParede}>
             <div className={styles.campoEspessura}>
@@ -2460,25 +1566,45 @@ export default function ModuloViewport({
                 onConfirmar={setEspessuraParede}
               />
             </div>
+            {!chaveEdicaoParede && (
+              <label className={styles.campoAlinhamento}>
+                <span>Posição de construção</span>
+                <select
+                  value={alinhamentoSelecionado}
+                  onChange={(e) => setAlinhamentoSelecionado(e.target.value as AlinhamentoParede)}
+                  title="Centro: espessura dividida nos dois lados. Direita: espessura jogada para a parte externa do contorno. Esquerda: espessura tirada da parte interna, mantendo a externa"
+                >
+                  <option value="central">Centro</option>
+                  <option value="direita">Direita</option>
+                  <option value="esquerda">Esquerda</option>
+                </select>
+              </label>
+            )}
             <span className={styles.infoParede}>Altura: {formatarCm(alturaParedes)} cm</span>
             {distanciaAtual !== null && fechandoContorno && (
               <span className={styles.infoParede}>Fechar contorno</span>
             )}
-            {ultimoPontoParede && !fechandoContorno && (
+            {!chaveEdicaoParede && pontosParede.length === 1 && (
+              <span className={styles.infoParede}>
+                Marque o segundo ponto: depois dele a extensão passa a ser digitada
+                {distanciaAtual !== null ? ` (agora: ${formatarCm(distanciaAtual)} cm)` : ''}
+              </span>
+            )}
+            {extensaoUltimaParede !== null && (
               <div className={styles.campoDistanciaParede}>
                 <CampoMedida
                   ref={distanciaParedeInputRef}
-                  rotulo="Distância"
-                  valor={distanciaAtual ?? 0}
+                  rotulo="Extensão"
+                  valor={extensaoUltimaParede}
                   min={MEDIDA_MINIMA}
                   max={PAREDE_COMPRIMENTO_MAXIMO}
-                  mensagemRecusa="Aponte o mouse na direção da próxima parede antes de confirmar"
-                  onConfirmar={(valor) => {
-                    if (!mouseNoChao) return false;
-                    confirmarDistanciaParede(valor);
-                  }}
+                  mensagemRecusa="Não foi possível mudar a extensão desta parede"
+                  onConfirmar={(valor) => estenderUltimaParede(valor)}
                 />
               </div>
+            )}
+            {extensaoUltimaParede !== null && distanciaAtual !== null && !fechandoContorno && (
+              <span className={styles.infoParede}>Próxima: {formatarCm(distanciaAtual)} cm</span>
             )}
             <div className={styles.acoesParede}>
               <button type="button" className={styles.botaoSecundario} title="Cancelar (Esc)" onClick={onCancelarParede}>
