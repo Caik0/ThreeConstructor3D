@@ -1,0 +1,42 @@
+.filtro {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.opcao {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text-h);
+  background: none;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bg);
+  }
+  &[aria-pressed='true'] {
+    color: var(--accent-contrast);
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+.contagem {
+  min-width: 1.4em;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  text-align: center;
+  background: color-mix(in srgb, currentColor 15%, transparent);
+}
