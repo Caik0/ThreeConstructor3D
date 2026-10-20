@@ -15,6 +15,9 @@ export default function PublicLayout() {
       <header className={styles.header}>
         {usuario && (
           <nav className={styles.nav}>
+            <Link to="/ajuda" className={styles.linkConta}>
+              Ajuda
+            </Link>
             <Link to="/perfil" className={styles.linkConta}>
               {usuario.nome}
             </Link>
