@@ -3,6 +3,9 @@ import styles from './DialogoConfirmacao.module.css';
 
 interface DialogoConfirmacaoProps {
   aberto: boolean;
+  /** Substitui a largura padrão (440px); ver .dialogoLargo em ProjetoEditor.module.css pro padrão
+   * de como estender esse estilo (composes: dialogo from este arquivo) */
+  className?: string;
   titulo: string;
   /** Explica o que vai acontecer */
   children: ReactNode;
@@ -19,6 +22,7 @@ interface DialogoConfirmacaoProps {
 // dentro da janela e fecha com Esc; "Cancelar" recebe o foco, para Enter não confirmar por engano
 export default function DialogoConfirmacao({
   aberto,
+  className,
   titulo,
   children,
   textoConfirmar,
@@ -42,7 +46,7 @@ export default function DialogoConfirmacao({
   return (
     <dialog
       ref={dialogoRef}
-      className={styles.dialogo}
+      className={className ?? styles.dialogo}
       aria-labelledby={idTitulo}
       aria-describedby={idDescricao}
       // Esc: o estado de quem abriu decide se fecha (não fecha durante a ação)
