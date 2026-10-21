@@ -1,4 +1,6 @@
-import type { ElementoEntrada, ElementoModulo, TipoElemento } from '../projetos/projetos';
+import type { ElementoEntrada, ElementoModulo, ResumoDaConversao, TipoElemento } from '../projetos/projetos';
+import { converterParaConvencaoAtual } from '../projetos/converterConvencao';
+import { CONVENCAO_EIXOS_EM_USO } from '../transformacoes/convencao';
 import { apiDelete, apiGet, apiPost, apiPostForm, apiPut } from './client';
 
 export interface Modulo {
@@ -7,14 +9,27 @@ export interface Modulo {
   tipo: TipoElemento;
   criadoEm: string;
   elemento: ElementoModulo;
+  /** Convenção dos eixos em que a API tem o módulo salvo (ausente = 1, a antiga); o `elemento` aqui
+   * já vem convertido pra convenção em uso */
+  convencaoEixos?: number;
+  /** Preenchido quando o módulo foi convertido ao ler (ainda não salvo na convenção nova) */
+  conversao?: ResumoDaConversao | null;
+}
+
+/** Módulo salvo numa convenção de eixos mais antiga que a em uso: converte a árvore pra atual,
+ * mantendo o mesmo desenho (ver converterConvencao.ts) */
+function normalizar(modulo: Modulo): Modulo {
+  if ((modulo.convencaoEixos ?? 1) >= CONVENCAO_EIXOS_EM_USO) return modulo;
+  const { elementos, formulasConvertidas } = converterParaConvencaoAtual([modulo.elemento]);
+  return { ...modulo, elemento: elementos[0], convencaoEixos: CONVENCAO_EIXOS_EM_USO, conversao: { formulasConvertidas } };
 }
 
 export function listarModulos() {
-  return apiGet<Modulo[]>('/modulos');
+  return apiGet<Modulo[]>('/modulos').then((modulos) => modulos.map(normalizar));
 }
 
 export function obterModulo(id: number) {
-  return apiGet<Modulo>(`/modulos/${id}`);
+  return apiGet<Modulo>(`/modulos/${id}`).then(normalizar);
 }
 
 // Um módulo nunca referencia elementos de um projeto: mesmo que a subárvore salva já tenha ids
@@ -24,16 +39,23 @@ function semIds(entrada: ElementoEntrada): ElementoEntrada {
 }
 
 export function salvarModulo(nome: string, elemento: ElementoEntrada) {
-  return apiPost<Modulo>('/modulos', { nome, elemento: semIds(elemento) });
+  return apiPost<Modulo>('/modulos', {
+    nome,
+    elemento: semIds(elemento),
+    convencaoEixos: CONVENCAO_EIXOS_EM_USO,
+  }).then(normalizar);
 }
 
 export function renomearModulo(id: number, nome: string) {
-  return apiPut<Modulo>(`/modulos/${id}`, { nome });
+  return apiPut<Modulo>(`/modulos/${id}`, { nome }).then(normalizar);
 }
 
 /** Substitui a árvore inteira de um módulo já salvo (editar e salvar de novo) */
 export function salvarConteudoModulo(id: number, elemento: ElementoEntrada) {
-  return apiPut<Modulo>(`/modulos/${id}/elemento`, { elemento: semIds(elemento) });
+  return apiPut<Modulo>(`/modulos/${id}/elemento`, {
+    elemento: semIds(elemento),
+    convencaoEixos: CONVENCAO_EIXOS_EM_USO,
+  }).then(normalizar);
 }
 
 export function excluirModulo(id: number) {
