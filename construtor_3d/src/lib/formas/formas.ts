@@ -147,9 +147,9 @@ export const FORMAS: Record<TipoForma, DefinicaoForma> = {
   caixa: {
     nome: 'Caixa',
     parametros: [
-      { chave: 'largura', rotulo: 'Largura', min: 0.1, max: 5000, padrao: 600 },
-      { chave: 'altura', rotulo: 'Altura', min: 0.1, max: 5000, padrao: 720 },
-      { chave: 'profundidade', rotulo: 'Profundidade', min: 0.1, max: 5000, padrao: 550 },
+      { chave: 'largura', rotulo: 'Largura', min: 0.001, max: 5000, padrao: 600 },
+      { chave: 'altura', rotulo: 'Altura', min: 0.001, max: 5000, padrao: 720 },
+      { chave: 'profundidade', rotulo: 'Profundidade', min: 0.001, max: 5000, padrao: 550 },
       { chave: 'raioFrenteDireita', rotulo: 'Raio frente-direita', min: 0, max: 2500, padrao: 0, naDescricao: false },
       { chave: 'raioFrenteEsquerda', rotulo: 'Raio frente-esquerda', min: 0, max: 2500, padrao: 0, naDescricao: false },
       { chave: 'raioFundoDireita', rotulo: 'Raio fundo-direita', min: 0, max: 2500, padrao: 0, naDescricao: false },
@@ -172,8 +172,8 @@ export const FORMAS: Record<TipoForma, DefinicaoForma> = {
   cilindro: {
     nome: 'Cilindro',
     parametros: [
-      { chave: 'diametro', rotulo: 'Diâmetro', min: 0.1, max: 5000, padrao: 400 },
-      { chave: 'altura', rotulo: 'Altura', min: 0.1, max: 5000, padrao: 900 },
+      { chave: 'diametro', rotulo: 'Diâmetro', min: 0.001, max: 5000, padrao: 400 },
+      { chave: 'altura', rotulo: 'Altura', min: 0.001, max: 5000, padrao: 900 },
     ],
     criarGeometria: (p) => new CylinderGeometry(p.diametro / 2, p.diametro / 2, p.altura, 48),
     tamanho: (p) => ({ x: p.diametro, y: p.diametro, z: p.altura }),
