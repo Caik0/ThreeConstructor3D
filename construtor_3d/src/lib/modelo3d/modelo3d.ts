@@ -4,6 +4,7 @@
 
 import { Box3, type BufferGeometry, Float32BufferAttribute, Group, Mesh, type Object3D, Vector3 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { SENTIDO_Z } from '../transformacoes/convencao';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /**
@@ -26,10 +27,12 @@ export function base64ParaArrayBuffer(base64: string): ArrayBuffer {
 // Um .glb vem em metros (convenção glTF); todo o resto do app trabalha em mm
 export const METROS_PARA_MM = 1000;
 
-/** Origem (canto) de uma caixa na convenção do app: mínimo em X/Y, máximo em Z (o Z é invertido
- * em relação a X/Y — ver SENTIDO_Z nos componentes de cena) */
+/** Origem (canto) de uma caixa na convenção do app (ver lib/transformacoes/convencao.ts): o canto
+ * esquerdo, embaixo e ATRÁS — mínimo em X e em Y (altura) e, em Z (a profundidade na cena, onde +Z
+ * aponta pra frente), o lado de trás. Com SENTIDO_Z > 0 o fundo é o Z mínimo; com SENTIDO_Z < 0, o
+ * máximo */
 export function origemDoCanto(caixa: Box3): Vector3 {
-  return new Vector3(caixa.min.x, caixa.min.y, caixa.max.z);
+  return new Vector3(caixa.min.x, caixa.min.y, SENTIDO_Z > 0 ? caixa.min.z : caixa.max.z);
 }
 
 /** Caminho de `no` a partir de `raiz`, como os índices dele (e de cada ancestral) na lista de
