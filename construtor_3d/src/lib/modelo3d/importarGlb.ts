@@ -2,6 +2,7 @@ import { Box3, Mesh, type Object3D, Vector3 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { enviarModelo3dArquivo } from '../api/modulos';
 import { MEDIDA_MINIMA, TAMANHO_NOME_ELEMENTO, type ElementoEntrada, type Posicao } from '../projetos/projetos';
+import { SENTIDO_Z } from '../transformacoes/convencao';
 import { caminhoDoNo, METROS_PARA_MM, origemDoCanto } from './modelo3d';
 
 const gltfLoader = new GLTFLoader();
@@ -36,12 +37,13 @@ interface Malha {
 const nomeDoNo = (no: Object3D, padrao: string) => (no.name.trim() || padrao).slice(0, TAMANHO_NOME_ELEMENTO);
 
 // Deslocamento da origem (canto) de `caixa` em relação à do pai. `origem`/`origemPai` vêm de
-// origemDoCanto, ainda no espaço do arquivo (Y altura, Z profundidade invertida — convenção do
+// origemDoCanto, ainda no espaço do arquivo (Y altura, Z profundidade pra frente — convenção do
 // glTF); o resultado já sai na convenção do app (Z altura, Y profundidade — ver tamanhoDaCaixa),
-// por isso as expressões de Y/Z do arquivo trocam de lugar no objeto devolvido
+// por isso as expressões de Y/Z do arquivo trocam de lugar no objeto devolvido. O Y dos dados é o
+// Z da cena vezes SENTIDO_Z (ver lib/transformacoes/convencao.ts)
 function posicaoRelativa(caixa: Box3, origemPai: Vector3): Posicao {
   const origem = origemDoCanto(caixa);
-  return { x: origem.x - origemPai.x, y: origemPai.z - origem.z, z: origem.y - origemPai.y };
+  return { x: origem.x - origemPai.x, y: SENTIDO_Z * (origem.z - origemPai.z), z: origem.y - origemPai.y };
 }
 
 /**
