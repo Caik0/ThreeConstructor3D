@@ -56,7 +56,8 @@ export interface Forma {
 
 /**
  * Posição da origem do elemento, relativa ao pai, em mm. Como no SketchUp, a origem é um canto:
- * a peça ocupa o sentido positivo dos três eixos a partir dela
+ * a peça ocupa o sentido positivo dos três eixos a partir dela. O canto é o de trás-esquerda-embaixo e
+ * o Y cresce pra frente (ver lib/transformacoes/convencao.ts)
  */
 export interface Posicao {
   x: number;
@@ -76,9 +77,22 @@ export interface Rotacao {
 
 export type TipoElemento = 'peca' | 'grupo' | 'parede' | 'piso' | 'abertura';
 
-// Mesmos limites de Models/Formas.cs na API
-// A precisão do editor é de 0,1 mm (ver cmParaMm/arredondar); esse já é o mínimo possível
-export const MEDIDA_MINIMA = 0.1;
+/** Papel de uma peça ou grupo dentro do módulo (ver CategoriaElemento na API) */
+export type CategoriaElemento = 'estrutura' | 'ferragem' | 'furacao';
+
+/** Categoria de um módulo salvo; módulos antigos, sem categoria gravada, contam como estrutura */
+export const categoriaDoModulo = (elemento: { categoria?: CategoriaElemento | null }): CategoriaElemento =>
+  elemento.categoria ?? 'estrutura';
+
+export const NOME_CATEGORIA: Record<CategoriaElemento, string> = {
+  estrutura: 'Estrutura',
+  ferragem: 'Ferragem',
+  furacao: 'Furação',
+};
+
+// Mesmos limites de Models/Formas.cs na API. O mínimo não é um limite de uso: só impede medida zero
+// ou negativa (que não forma geometria)
+export const MEDIDA_MINIMA = 0.00000000001;
 export const MEDIDA_MAXIMA = 5000;
 // O encontro de paredes (construirSegmentosParede) estende cada segmento um pouco além do canto
 // bruto que o usuário desenhou, pela metade da espessura da parede — por isso qualquer limite
@@ -132,6 +146,22 @@ export interface Piso {
   espessura: number;
 }
 
+/** Repetição automática de um elemento ao redimensionar o pai (ver `Elemento.copias` na API): a
+ * primeira cópia é o próprio elemento, onde ele está; a última termina `margemFim` mm da borda do
+ * pai no `eixo`. "quantidade": `quantidade` cópias distribuídas por igual; "espacamento": uma a
+ * cada `espacamento` mm (entre origens), quantas couberem */
+export type EixoCopias = 'x' | 'y' | 'z';
+export type ModoCopias = 'quantidade' | 'espacamento';
+export interface ConfigCopias {
+  eixo: EixoCopias;
+  modo: ModoCopias;
+  quantidade: number;
+  espacamento: number;
+  margemFim: number;
+}
+export const COPIAS_MAXIMO = 50;
+export const COPIAS_PADRAO: ConfigCopias = { eixo: 'z', modo: 'espacamento', quantidade: 2, espacamento: 500, margemFim: 0 };
+
 /** Um membro de um grupo de face (ver `Elemento.gruposDeFace`): a face `face` do elemento com
  * aquela `referencia` (um descendente, direto ou não, do grupo dono dessa lista). Usa
  * `Elemento.referenciaEstavel` — gerada sozinha na hora, nunca mostrada na cena — em vez da chave
@@ -154,6 +184,8 @@ export interface Elemento {
   colisao: boolean;
   /** Oculto não aparece na cena 3D nem pode ser clicado nela */
   visivel: boolean;
+  /** Papel no módulo; só faz sentido em peças e grupos */
+  categoria: CategoriaElemento;
   /** Só em peças; uma peça tem forma OU modelo3d, nunca os dois */
   forma: Forma | null;
   /** Só em peças importadas de um .glb: a URL do arquivo ORIGINAL (nunca separado em partes) —
@@ -194,6 +226,11 @@ export interface Elemento {
    * DESCENDENTE deste grupo, não uma face dele mesmo (um grupo não tem face própria). Nome do
    * grupo -> lista de membros; nulo se não houver nenhum */
   gruposDeFace: Record<string, MembroGrupoDeFace[]> | null;
+  /** Só em peças e grupos: repetição automática ao redimensionar o pai */
+  copias?: ConfigCopias | null;
+  /** Este elemento é a cópia nº `indiceCopia` do modelo cuja `referenciaEstavel` é `copiaDe` */
+  copiaDe?: string | null;
+  indiceCopia?: number | null;
   /** Código interno gerado sozinho na hora em que o elemento entra num grupo de face pela primeira
    * vez (ver `MembroGrupoDeFace`) — nunca aparece na cena nem em lugar nenhum da interface, ao
    * contrário de `idUnico`. Regenerado se o elemento for duplicado, como o idUnico; nulo se o
@@ -231,6 +268,7 @@ export interface ElementoEntrada {
   rotacao?: Rotacao;
   colisao?: boolean;
   visivel?: boolean;
+  categoria?: CategoriaElemento;
   forma?: Forma;
   modelo3d?: string;
   modelo3dNo?: string;
@@ -243,6 +281,9 @@ export interface ElementoEntrada {
   travados?: string[];
   texturas?: Record<string, string>;
   gruposDeFace?: Record<string, MembroGrupoDeFace[]>;
+  copias?: ConfigCopias;
+  copiaDe?: string;
+  indiceCopia?: number;
   referenciaEstavel?: string;
   idUnico?: string;
   idSequencial?: string;
@@ -280,6 +321,17 @@ export interface Projeto extends ProjetoBase {
    * Nula em projetos sem nenhuma criada ainda */
   variaveisGlobais: Record<string, number> | null;
   elementos: Elemento[];
+  /** Convenção dos eixos em que a API tem o projeto salvo (ausente = 1, a antiga); os `elementos`
+   * aqui já vêm convertidos pra convenção em uso — ver lib/api/projetos.ts */
+  convencaoEixos?: number;
+  /** Preenchido quando o projeto foi convertido ao abrir (ainda não salvo na convenção nova) */
+  conversao?: ResumoDaConversao | null;
+}
+
+/** O que a conversão automática de eixos fez ao ler um projeto ou módulo antigo */
+export interface ResumoDaConversao {
+  /** Fórmulas de posição/rotação que viraram valor fixo (o valor delas foi preservado) */
+  formulasConvertidas: number;
 }
 
 export function posicaoValida(posicao: Posicao) {
