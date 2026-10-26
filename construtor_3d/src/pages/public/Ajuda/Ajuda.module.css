@@ -1,0 +1,460 @@
+.pagina {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 24px 80px;
+  text-align: left;
+}
+
+/* ---------- Cabeçalho ---------- */
+
+.cabecalho {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 100% 0%, var(--accent-bg), transparent 55%),
+    var(--surface);
+
+  h1 {
+    margin: 0;
+    font-size: 2.1rem;
+    letter-spacing: -0.5px;
+  }
+
+  p {
+    color: var(--text);
+  }
+
+  /* Dois seletores de classe: vence o .busca do próprio componente, que tem margem e largura máxima */
+  .campoBusca {
+    max-width: 520px;
+    margin: 14px 0 0;
+  }
+}
+
+/* ---------- Abas (índice) ---------- */
+
+.corpo {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.indice {
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 32px);
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+
+  ul {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+}
+
+.aba {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+  transition:
+    background 0.15s,
+    color 0.15s;
+
+  &:hover {
+    color: var(--text-h);
+    background: var(--bg);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: -2px;
+  }
+
+  &[aria-current='true'] {
+    font-weight: 600;
+    color: var(--accent-text);
+    background: var(--accent-bg);
+  }
+}
+
+.iconeDaAba {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--bg);
+  transition:
+    background 0.15s,
+    color 0.15s;
+
+  svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .aba[aria-current='true'] & {
+    color: var(--accent-contrast);
+    background: var(--accent);
+  }
+}
+
+/* ---------- Seções ---------- */
+
+.conteudo {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.vazio {
+  padding: 24px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  text-align: center;
+}
+
+.secao {
+  padding: 26px 28px 20px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  scroll-margin-top: 16px;
+
+  /* Texto corrido dentro de uma seção */
+  > p {
+    margin: 0 0 14px;
+  }
+}
+
+.cabecalhoDaSecao {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+
+  h2 {
+    margin: 0;
+    font-size: 1.4rem;
+  }
+}
+
+.iconeDaSecao {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  color: var(--accent-text);
+  background: var(--accent-bg);
+
+  svg {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+.resumo {
+  margin: 2px 0 0;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+/* ---------- Listas e passos ---------- */
+
+.lista {
+  margin: 0 0 16px;
+  padding-left: 22px;
+
+  li {
+    margin-bottom: 8px;
+    padding-left: 4px;
+
+    &::marker {
+      color: var(--accent);
+    }
+  }
+}
+
+.passos {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  counter-reset: passo;
+
+  /* O número é posicionado à parte: com display:flex no <li>, cada pedaço de texto e cada <strong>
+     viraria uma coluna separada */
+  li {
+    position: relative;
+    min-height: 28px;
+    padding-left: 40px;
+    counter-increment: passo;
+
+    &::before {
+      position: absolute;
+      top: 0;
+      left: 0;
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--accent-contrast);
+      background: var(--accent);
+      content: counter(passo);
+    }
+  }
+}
+
+.dica {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 4px 0 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--accent-border);
+  border-radius: 12px;
+  background: var(--accent-bg);
+
+  p {
+    margin: 0;
+    color: var(--text-h);
+  }
+}
+
+.iconeDaDica {
+  display: inline-flex;
+  flex: none;
+  margin-top: 1px;
+  color: var(--accent-text);
+}
+
+/* Seletor de elemento não é isolado pelo CSS Modules: preso à página pra não afetar o resto do site */
+.pagina code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: var(--bg);
+}
+
+/* ---------- Teclas e atalhos ---------- */
+
+.tecla {
+  display: inline-block;
+  min-width: 1.7em;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 2px 0 var(--border);
+  font-family: var(--mono);
+  font-size: 0.82em;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--text-h);
+  background: var(--bg);
+}
+
+.mais,
+.ou {
+  margin: 0 5px;
+  font-size: 0.85em;
+  color: var(--text);
+}
+
+.grupoAtalhos {
+  margin-bottom: 18px;
+
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text);
+
+    &::after {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+      content: '';
+    }
+  }
+}
+
+.atalhos {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.atalho {
+  display: grid;
+  grid-template-columns: minmax(190px, 38%) 1fr;
+  gap: 14px;
+  align-items: center;
+  padding: 9px 16px;
+  font-size: 0.95rem;
+  transition: background 0.15s;
+
+  & + & {
+    border-top: 1px solid var(--border);
+  }
+
+  &:hover {
+    background: var(--bg);
+  }
+
+  dt,
+  dd {
+    margin: 0;
+  }
+}
+
+/* ---------- Ferramentas ---------- */
+
+.ferramentas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 14px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.ferramenta {
+  display: flex;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+  transition:
+    border-color 0.15s,
+    transform 0.15s;
+
+  &:hover {
+    border-color: var(--accent-border);
+    transform: translateY(-2px);
+  }
+
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 6px;
+    font-size: 1.02rem;
+    color: var(--text-h);
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+}
+
+.iconeDaFerramenta {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  color: var(--accent-contrast);
+  background: var(--accent);
+}
+
+/* ---------- Telas estreitas: abas viram uma faixa rolável no topo ---------- */
+
+@media (max-width: 768px) {
+  .pagina {
+    padding: 16px 12px 56px;
+  }
+
+  .cabecalho {
+    padding: 20px;
+
+    h1 {
+      font-size: 1.7rem;
+    }
+  }
+
+  .corpo {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .indice {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    max-height: none;
+    padding: 6px;
+    overflow: auto hidden;
+    box-shadow: var(--shadow);
+
+    ul {
+      flex-direction: row;
+      gap: 6px;
+    }
+  }
+
+  .aba {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .secao {
+    padding: 20px 18px 14px;
+  }
+
+  .iconeDaSecao {
+    width: 40px;
+    height: 40px;
+  }
+
+  .atalho {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 10px 14px;
+  }
+}
