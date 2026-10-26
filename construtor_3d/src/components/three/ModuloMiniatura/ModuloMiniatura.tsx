@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AmbientLight,
   Box3,
@@ -15,15 +15,13 @@ import {
   type BufferGeometry,
 } from 'three';
 import { FORMAS } from '../../../lib/formas/formas';
+import { SENTIDO_Z } from '../../../lib/transformacoes/convencao';
 import { extrairMalhaDoCanto } from '../../../lib/modelo3d/modelo3d';
 import type { ElementoModulo } from '../../../lib/projetos/projetos';
 import styles from './ModuloMiniatura.module.css';
 
 const COR_PECA = 0xb8b8b8;
 const COR_PAREDE = 0xcdc4b3;
-// Mesma convenção do editor: Y positivo nos dados (profundidade) aponta pra longe da câmera, e
-// vira o Z nativo da cena — mas o Z nativo positivo do three.js aponta pra câmera, daí o -Z aqui
-const SENTIDO_Z = -1;
 
 interface ModuloMiniaturaProps {
   elemento: ElementoModulo;
@@ -109,70 +107,106 @@ function descartarSubarvore(raiz: Group) {
   });
 }
 
-// Resolução interna do render, em pixels; o CSS decide o tamanho exibido (o canvas escala como
-// qualquer imagem). Fixa porque o container pode estar oculto no momento do mount (ex.: dentro de
+// Resolução interna do render, em pixels; o CSS decide o tamanho exibido (a imagem escala como
+// qualquer outra). Fixa porque o container pode estar oculto no momento do mount (ex.: dentro de
 // um <dialog> ainda fechado), quando medir a largura em tela (clientWidth) sempre daria 0
 const RESOLUCAO = 160;
 
-// Miniatura estática (sem interação, um único render) de uma peça ou grupo salvo como módulo
+// UM único renderizador WebGL, fora da tela, serve todas as miniaturas: cada uma vira uma imagem
+// (data URL) e o contexto não fica preso a ela. Antes cada miniatura abria o próprio contexto e o
+// navegador só permite uns 16 ao mesmo tempo — passando disso, derruba o mais antigo, que era o do
+// editor 3D (tela branca, "Too many active WebGL contexts")
+let rendererCompartilhado: WebGLRenderer | null = null;
+
+function obterRenderer(): WebGLRenderer {
+  if (rendererCompartilhado) return rendererCompartilhado;
+  const canvas = document.createElement('canvas');
+  const renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(RESOLUCAO, RESOLUCAO, false);
+  // Sem o preventDefault o navegador não restaura um contexto perdido; se mesmo assim cair, a
+  // próxima miniatura recria o renderizador do zero
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    if (rendererCompartilhado === renderer) rendererCompartilhado = null;
+  });
+  rendererCompartilhado = renderer;
+  return renderer;
+}
+
+// Renderiza uma miniatura por vez (o renderizador é um só e o carregamento de modelos 3D é
+// assíncrono); cada chamada espera a anterior terminar, mesmo que ela tenha falhado
+let fila: Promise<unknown> = Promise.resolve();
+// O mesmo módulo, já desenhado, não é desenhado de novo (ex.: ao reabrir um diálogo)
+const cache = new WeakMap<ElementoModulo, Promise<string>>();
+
+async function renderizar(elemento: ElementoModulo): Promise<string> {
+  const scene = new Scene();
+  scene.add(new AmbientLight(0xffffff, 0.9));
+  const luz = new DirectionalLight(0xffffff, 1.4);
+  luz.position.set(3, 5, 4);
+  scene.add(luz);
+
+  const raiz = new Group();
+  const carregamentos: Promise<void>[] = [];
+  montarSubarvore(elemento, raiz, carregamentos);
+  scene.add(raiz);
+
+  try {
+    await Promise.all(carregamentos);
+
+    const caixa = new Box3().setFromObject(raiz);
+    const centro = caixa.isEmpty() ? new Vector3() : caixa.getCenter(new Vector3());
+    const dimensoes = caixa.isEmpty() ? new Vector3(1, 1, 1) : caixa.getSize(new Vector3());
+    const raio = Math.max(dimensoes.length() / 2, 1);
+
+    const fov = 35;
+    const camera = new PerspectiveCamera(fov, 1, raio / 100, raio * 100);
+    // Ângulo isométrico fixo, como a câmera inicial do editor, a uma distância que enquadra tudo
+    const distancia = raio / Math.sin(MathUtils.degToRad(fov) / 2);
+    camera.position.set(centro.x + distancia * 0.62, centro.y + distancia * 0.5, centro.z + distancia * 0.62);
+    camera.lookAt(centro);
+
+    const renderer = obterRenderer();
+    renderer.render(scene, camera);
+    // Contexto derrubado no meio: sem imagem (nunca uma miniatura em branco guardada no cache)
+    if (renderer.getContext().isContextLost()) throw new Error('contexto WebGL perdido');
+    // Lido logo depois do render, na mesma tarefa: o buffer ainda é válido sem preserveDrawingBuffer
+    return renderer.domElement.toDataURL('image/png');
+  } finally {
+    descartarSubarvore(raiz);
+  }
+}
+
+function gerarMiniatura(elemento: ElementoModulo): Promise<string> {
+  let pronta = cache.get(elemento);
+  if (!pronta) {
+    const tarefa = fila.then(() => renderizar(elemento));
+    // Uma que falha não trava a fila nem fica no cache: a próxima tentativa começa do zero
+    fila = tarefa.catch(() => undefined);
+    pronta = tarefa.catch((erro: unknown) => {
+      cache.delete(elemento);
+      console.error('Não foi possível gerar a miniatura do módulo:', erro);
+      return '';
+    });
+    cache.set(elemento, pronta);
+  }
+  return pronta;
+}
+
+// Miniatura estática (sem interação) de uma peça ou grupo salvo como módulo
 export default function ModuloMiniatura({ elemento }: ModuloMiniaturaProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [url, setUrl] = useState('');
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    let renderer: WebGLRenderer;
-    try {
-      renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true });
-    } catch {
-      // Contexto WebGL indisponível (ex.: limite de contextos simultâneos): sem miniatura, sem quebrar a página
-      return;
-    }
-
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(RESOLUCAO, RESOLUCAO, false);
-
-    const scene = new Scene();
-    scene.add(new AmbientLight(0xffffff, 0.9));
-    const luz = new DirectionalLight(0xffffff, 1.4);
-    luz.position.set(3, 5, 4);
-    scene.add(luz);
-
-    const raiz = new Group();
-    const carregamentos: Promise<void>[] = [];
-    montarSubarvore(elemento, raiz, carregamentos);
-    scene.add(raiz);
-
-    let cancelado = false;
-    Promise.all(carregamentos).then(() => {
-      if (cancelado) return;
-
-      const caixa = new Box3().setFromObject(raiz);
-      const centro = caixa.isEmpty() ? new Vector3() : caixa.getCenter(new Vector3());
-      const dimensoes = caixa.isEmpty() ? new Vector3(1, 1, 1) : caixa.getSize(new Vector3());
-      const raio = Math.max(dimensoes.length() / 2, 1);
-
-      const fov = 35;
-      const camera = new PerspectiveCamera(fov, 1, raio / 100, raio * 100);
-      // Ângulo isométrico fixo, como a câmera inicial do editor, a uma distância que enquadra tudo
-      const distancia = raio / Math.sin(MathUtils.degToRad(fov) / 2);
-      camera.position.set(
-        centro.x + distancia * 0.62,
-        centro.y + distancia * 0.5,
-        centro.z + distancia * 0.62,
-      );
-      camera.lookAt(centro);
-
-      renderer.render(scene, camera);
+    let ativo = true;
+    gerarMiniatura(elemento).then((imagem) => {
+      if (ativo) setUrl(imagem);
     });
-
     return () => {
-      cancelado = true;
-      descartarSubarvore(raiz);
-      renderer.dispose();
+      ativo = false;
     };
   }, [elemento]);
 
-  return <canvas ref={canvasRef} className={styles.canvas} aria-hidden="true" />;
+  return url ? <img src={url} className={styles.canvas} alt="" aria-hidden="true" /> : null;
 }

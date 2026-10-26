@@ -27,6 +27,51 @@
   gap: 8px;
 }
 
+.vistas {
+  position: relative;
+  display: flex;
+  gap: 4px;
+}
+
+/* Desenhado num portal no <body> (ver alternarMenuDeVistas), por isso position: fixed e um z-index
+   acima do editor (z-index 10) e dos painéis; right/bottom vêm do botão, calculados no JS */
+.menuVistas {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.itemVista {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  color: var(--text-h);
+  background: none;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bg);
+  }
+  &[aria-checked='true'] {
+    color: var(--accent-contrast);
+    background: var(--accent);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: -2px;
+  }
+}
+
 .botao {
   padding: 6px 12px;
   border: 1px solid var(--border);
@@ -103,6 +148,23 @@
 
 .campoEspessura {
   width: 160px;
+}
+
+.campoAlinhamento {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.75rem;
+
+  select {
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: inherit;
+    background: var(--surface);
+    font: inherit;
+    font-size: 0.875rem;
+  }
 }
 
 .campoDistanciaParede {
@@ -278,7 +340,8 @@
   }
 }
 
-@media (max-width: 720px) {
+/* Layout compacto (celular e tablet); o mesmo corte de ProjetoEditor.module.css e lib/hooks/useLayoutCompacto.ts */
+@media (max-width: 768px) {
   /* Construtor de paredes no celular: sem campo de espessura (usa o valor atual/padrão — ajusta
      no desktop) nem o texto de instrução (a barra de ferramentas fixa já mostra os ícones) — só
      os botões de ação, pra caber tudo numa tela pequena */
@@ -311,8 +374,9 @@
     bottom: 76px;
   }
 
+  /* Sem o texto explicativo no celular: a barra de ferramentas já mostra os ícones e o espaço é curto */
   .dica {
-    bottom: 76px;
+    display: none;
   }
 }
 
@@ -356,4 +420,20 @@
   font-weight: 600;
   color: var(--text-h);
   white-space: nowrap;
+}
+
+/* Etiqueta de distância até o vizinho colidível mais próximo (mesma base da trena, mas uma
+   borda azul — a mesma cor do destaque de grupo — pra diferenciar das duas outras etiquetas que
+   também podem aparecer no viewport (idUnico/idSequencial e a da trena) */
+.etiquetaDistancia {
+  padding: 3px 8px;
+  border: 1px solid #1f7bff;
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-h);
+  white-space: nowrap;
+  pointer-events: none;
 }

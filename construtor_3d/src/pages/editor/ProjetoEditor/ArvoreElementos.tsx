@@ -23,7 +23,9 @@ import {
   type Arvore,
 } from '../../../store/editorStore';
 import DialogoConfirmacao from '../../../components/ui/DialogoConfirmacao/DialogoConfirmacao';
+import NovoFuroDialog from './NovoFuroDialog';
 import ImportarModuloDialog from './ImportarModuloDialog';
+import NovaFerragemDialog from './NovaFerragemDialog';
 import styles from './ProjetoEditor.module.css';
 
 const iconProps = {
@@ -88,6 +90,11 @@ const ICONES = {
     <svg {...iconProps}>
       <rect x="9" y="9" width="12" height="12" rx="2" />
       <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+    </svg>
+  ),
+  substituir: (
+    <svg {...iconProps}>
+      <path d="M4 8h13l-3-3M20 16H7l3 3" />
     </svg>
   ),
   salvarModulo: (
@@ -193,6 +200,9 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
   const desagrupar = useEditorStore((s) => s.desagrupar);
   const duplicar = useEditorStore((s) => s.duplicar);
   const importarModulo = useEditorStore((s) => s.importarModulo);
+  const substituirPorModulo = useEditorStore((s) => s.substituirPorModulo);
+  const preencherAbertura = useEditorStore((s) => s.preencherAbertura);
+  const esvaziarAbertura = useEditorStore((s) => s.esvaziarAbertura);
   const remover = useEditorStore((s) => s.remover);
   const moverPara = useEditorStore((s) => s.moverPara);
   const alternarVisibilidade = useEditorStore((s) => s.alternarVisibilidade);
@@ -213,6 +223,10 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
   const [alvo, setAlvo] = useState<Alvo | null>(null);
   const [nomeModulo, setNomeModulo] = useState<string | null>(null);
   const [importandoModulo, setImportandoModulo] = useState(false);
+  const [criandoFerragem, setCriandoFerragem] = useState(false);
+  const [escolhendoFuro, setEscolhendoFuro] = useState(false);
+  const [substituindo, setSubstituindo] = useState<string | null>(null);
+  const [preenchendo, setPreenchendo] = useState<string | null>(null);
   const fantasmaRef = useRef<HTMLDivElement>(null);
   const encerrarArrasteRef = useRef<(() => void) | null>(null);
   const raizRef = useRef<HTMLElement>(null);
@@ -321,7 +335,8 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
       // Grupo e peça podem ser "abertos" (duplo clique edita o conteúdo, como um componente do
       // SketchUp); parede só expande pra mostrar os vãos dela, sem ter conteúdo editável assim
       const podeEditarConteudo = elemento.tipo === 'grupo' || elemento.tipo === 'peca';
-      const podeExpandir = podeEditarConteudo || elemento.tipo === 'parede';
+      const podeExpandir =
+        podeEditarConteudo || elemento.tipo === 'parede' || (elemento.tipo === 'abertura' && (filhos[chave]?.length ?? 0) > 0);
       const aberto = podeExpandir && (!recolhidos.has(chave) || caminhoSelecionada.includes(chave));
       const nome = elemento.nome.trim() || 'Sem nome';
       const zonaAlvo = alvo?.chave === chave ? alvo.zona : null;
@@ -378,6 +393,7 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
               <span className={styles.noIcone}>{ICONES[elemento.tipo]}</span>
               <span className={styles.noTexto}>
                 <span className={styles.noNome}>{nome}</span>
+                {elemento.copiaDe && <span className={styles.noMedidas}>cópia nº {elemento.indiceCopia} · repetição automática</span>}
                 {elemento.forma && (
                   <span className={styles.noMedidas}>
                     {descreverForma(elemento.forma.tipo, elemento.forma.parametros)}
@@ -463,6 +479,15 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
               + {FORMAS[tipo].nome}
             </button>
           ))}
+        {podeCriarForma && (
+          <button
+            type="button"
+            className={styles.botaoAdicionar}
+            onClick={() => setEscolhendoFuro(true)}
+          >
+            + Furo
+          </button>
+        )}
         {podeCriarGrupo && (
           <button
             type="button"
@@ -482,6 +507,17 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
             title="Adiciona uma única parede solta; para desenhar várias de uma vez, use a ferramenta Parede (P) na barra à esquerda"
           >
             + Parede
+          </button>
+        )}
+        {podeImportarModulo && (
+          <button
+            type="button"
+            className={styles.botaoAdicionar}
+            disabled={limiteAtingido}
+            onClick={() => setCriandoFerragem(true)}
+            title="Adiciona uma ferragem salva (dobradiça, puxador...) no elemento selecionado"
+          >
+            + Ferragem
           </button>
         )}
         {podeImportarModulo && (
@@ -539,13 +575,48 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
             {ICONES.duplicar} Duplicar
           </button>
         )}
+        {podeImportarModulo && elementoSelecionado?.tipo === 'abertura' && (
+          <button
+            type="button"
+            className={styles.acao}
+            onClick={() => selecionada && setPreenchendo(selecionada)}
+            title="Preenche o vão com um módulo salvo (porta, janela...), ajustado ao tamanho dele"
+          >
+            {ICONES.substituir} Preencher vão
+          </button>
+        )}
+        {podeRemover && elementoSelecionado?.tipo === 'abertura' && (filhos[elementoSelecionado.chave]?.length ?? 0) > 0 && (
+          <button
+            type="button"
+            className={styles.acao}
+            onClick={() => selecionada && esvaziarAbertura(selecionada)}
+            title="Tira o módulo do vão, deixando-o vazio"
+          >
+            {ICONES.remover} Esvaziar vão
+          </button>
+        )}
+        {podeImportarModulo && (
+          <button
+            type="button"
+            className={styles.acao}
+            disabled={!selecionada || (elementoSelecionado?.tipo !== 'peca' && elementoSelecionado?.tipo !== 'grupo')}
+            onClick={() => selecionada && setSubstituindo(selecionada)}
+            title="Trocar o elemento selecionado por outro módulo salvo"
+          >
+            {ICONES.substituir} Substituir
+          </button>
+        )}
         {podeRemover && (
           <button
             type="button"
             className={styles.acao}
-            disabled={!selecionada}
+            disabled={!selecionada || !!elementoSelecionado?.copiaDe}
             onClick={() => selecionada && remover(selecionada)}
-            title="Remover (Delete)"
+            title={
+              elementoSelecionado?.copiaDe
+                ? 'Uma cópia automática não se apaga: mude a quantidade na regra do modelo'
+                : 'Remover (Delete)'
+            }
           >
             {ICONES.remover} Remover
           </button>
@@ -600,6 +671,30 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
           />
         </label>
       </DialogoConfirmacao>
+
+      {criandoFerragem && <NovaFerragemDialog onFechar={() => setCriandoFerragem(false)} />}
+      {escolhendoFuro && <NovoFuroDialog onFechar={() => setEscolhendoFuro(false)} />}
+
+      <ImportarModuloDialog
+        aberto={preenchendo !== null}
+        titulo="Preencher vão com módulo"
+        onEscolher={(elemento) => {
+          if (preenchendo) preencherAbertura(preenchendo, elemento);
+          setPreenchendo(null);
+        }}
+        onFechar={() => setPreenchendo(null)}
+      />
+
+      <ImportarModuloDialog
+        aberto={substituindo !== null}
+        titulo="Substituir por módulo"
+        categoria={substituindo ? (elementos[substituindo]?.categoria ?? 'estrutura') : undefined}
+        onEscolher={(elemento) => {
+          if (substituindo) substituirPorModulo(substituindo, elemento);
+          setSubstituindo(null);
+        }}
+        onFechar={() => setSubstituindo(null)}
+      />
 
       <ImportarModuloDialog
         aberto={importandoModulo}

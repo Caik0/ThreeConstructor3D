@@ -1,10 +1,17 @@
 import { Box3, Euler, MathUtils, Matrix4, Quaternion, Vector3 } from 'three';
 import type { Posicao, Rotacao } from '../projetos/projetos';
+import { SINAL_DAS_ROTACOES } from './convencao';
 
-// Transformações no espaço dos dados: X para a direita, Z para cima, Y para trás (em mm) e
-// rotações em graus, ordem X, Y, Z, positivas no sentido anti-horário visto da ponta positiva
-// do eixo (como no SketchUp). Como o Y aponta para trás, esse sentido corresponde a ângulos
-// negativos na matriz de rotação usual
+const ORDEM_DOS_EIXOS = 'XZY';
+const SINAL_NA_MATRIZ = SINAL_DAS_ROTACOES;
+
+// Transformações no espaço dos dados: X para a direita, Z para cima, Y para a frente (em mm; ver
+// convencao.ts) e rotações em graus, positivas no sentido anti-horário visto da ponta positiva do
+// eixo (como no SketchUp). A cena aplica as rotações como X, depois a vertical (Z dos dados), depois
+// a profundidade (Y dos dados) — ver aplicarRotacao em ModuloViewport/utilitarios.ts —, e a matriz dos
+// dados precisa seguir EXATAMENTE a mesma ordem e sentido, senão a posição de um filho dentro de um
+// pai girado, calculada aqui, não bate com onde o viewport desenha. Como o espaço dos dados é
+// espelhado em relação à cena, o ângulo da interface entra na matriz com SINAL_DAS_ROTACOES
 
 export const SEM_ROTACAO: Rotacao = { x: 0, y: 0, z: 0 };
 
@@ -17,12 +24,13 @@ export function normalizarGraus(graus: number) {
   return (normalizado === -180 ? 180 : normalizado) || 0;
 }
 
+// Ordem 'XZY' = Rx · Rz · Ry: X, depois a vertical (Z), depois a profundidade (Y)
 const euler = (rotacao: Rotacao) =>
   new Euler(
-    -MathUtils.degToRad(rotacao.x),
-    -MathUtils.degToRad(rotacao.y),
-    -MathUtils.degToRad(rotacao.z),
-    'XYZ',
+    SINAL_NA_MATRIZ * MathUtils.degToRad(rotacao.x),
+    SINAL_NA_MATRIZ * MathUtils.degToRad(rotacao.y),
+    SINAL_NA_MATRIZ * MathUtils.degToRad(rotacao.z),
+    ORDEM_DOS_EIXOS,
   );
 
 /** Transformação da origem de um elemento no espaço do pai: gira em torno da origem e posiciona */
@@ -39,8 +47,8 @@ export function decompor(matriz: Matrix4): { posicao: Posicao; rotacao: Rotacao 
   const posicao = new Vector3();
   const quaternion = new Quaternion();
   matriz.decompose(posicao, quaternion, new Vector3());
-  const angulos = new Euler().setFromQuaternion(quaternion, 'XYZ');
-  const graus = (radianos: number) => normalizarGraus(arredondar(-MathUtils.radToDeg(radianos), 2));
+  const angulos = new Euler().setFromQuaternion(quaternion, ORDEM_DOS_EIXOS);
+  const graus = (radianos: number) => normalizarGraus(arredondar(SINAL_NA_MATRIZ * MathUtils.radToDeg(radianos), 2));
 
   return {
     posicao: { x: arredondar(posicao.x, 1), y: arredondar(posicao.y, 1), z: arredondar(posicao.z, 1) },

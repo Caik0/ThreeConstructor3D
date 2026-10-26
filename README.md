@@ -1,6 +1,6 @@
 # Construtor 3D
 
-Editor 3D de módulos de marcenaria/cozinha no navegador — peças, paredes, pisos e vãos, com medidas em fórmulas, texturas por face e um catálogo de módulos reutilizáveis.
+Editor 3D de módulos de marcenaria/cozinha no navegador — peças, paredes, pisos e vãos, com medidas em fórmulas, texturas por face e um catálogo de módulos reutilizáveis, no espírito do SketchUp.
 
 Este repositório reúne os dois projetos que compõem a aplicação, lado a lado:
 
@@ -26,10 +26,18 @@ O Nginx é quem o navegador acessa; ele serve o front-end e faz proxy de `/api` 
 
 ## Principais funcionalidades
 
-- **Editor 3D**: desenhar paredes, criar peças por forma paramétrica (caixa, cilindro) ou importar `.glb`, agrupar/duplicar/mover, trena, balde de tinta.
+- **Editor 3D** no estilo SketchUp: desenhar paredes, criar peças por forma paramétrica (caixa, cilindro) ou importar `.glb`, agrupar/duplicar/mover, trena, balde de tinta.
 - **Fórmulas e variáveis** por campo, por elemento e por face, com referência ao elemento pai (`Parent!campo`).
 - **Grupos de face**: reúne faces de diferentes peças de um grupo pra pintar tudo de uma vez.
-- **Catálogo de módulos**: salva uma peça/grupo à parte pra reaproveitar em outros projetos, com importação automática de `.glb` soltos numa pasta do servidor.
+- **Catálogo de módulos**: salva uma peça/grupo à parte pra reaproveitar em outros projetos, com importação automática de `.glb` soltos numa pasta do servidor. A tela de módulos (e os diálogos de importar) têm **busca por nome** e abas por **categoria**; a tela de projetos também tem busca.
+- **Categorias** de peça/grupo — estrutura, ferragem e furação —, pra separar o que é chapa do que é dobradiça, puxador ou furo. Os módulos salvos herdam a categoria.
+- **Furos e ferragens**: o botão **+ Furo** cria um furo passante (que atravessa o módulo) ou um furo numa face, e **+ Ferragem** insere uma ferragem do catálogo no elemento selecionado, com posição e rotação definidas antes de criar.
+- **Substituir e preencher**: um elemento pode ser trocado por outro módulo do catálogo (mantendo lugar e rotação), e um vão de porta ou janela pode ser **preenchido** com um módulo (ou ficar vazio).
+- **Cópia dinâmica**: um elemento (dobradiça, prateleira…) pode se repetir ao longo de um eixo conforme o tamanho do pai — por quantidade fixa ou por espaçamento —; cada cópia criada continua editável individualmente.
+- **Seleção múltipla** (Ctrl+clique): mover e girar afetam todos os selecionados juntos, que colidem como um conjunto contra o resto.
+- **Enquadrar** a câmera no elemento selecionado (ou no ambiente, sem seleção) em várias vistas: isométrica, topo, base, frente, fundo, esquerda e direita.
+- **Construtor de paredes**: o segundo ponto se marca por clique; a partir dele a extensão da última parede passa a ser digitada.
+- **Página de ajuda** (`/ajuda`, também pelo botão **?** do editor): ferramentas, atalhos de teclado e mouse, fórmulas, módulos e o layout de celular/tablet, com busca. Ela cresce junto com o sistema — ver "Página de ajuda" no README do front.
 - **Permissões por usuário**: cada ferramenta do editor pode ser liberada individualmente por conta, administrado pela tela `/admin/usuarios` (ver a seção "Permissões de usuário" no README da API).
 
 ## Rodando o projeto
