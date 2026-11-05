@@ -1,11 +1,12 @@
 // Colisão do arraste (caixas orientadas), medição de vãos até os vizinhos e etiquetas de distância.
 
-import { Box3, BufferGeometry, Group, Matrix4, Mesh, type Object3D, Vector3 } from 'three';
+import { Box3, BufferGeometry, Group, Matrix4, Mesh, type Object3D, Quaternion, Vector3 } from 'three';
 import { OBB } from 'three/addons/math/OBB.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { formatarCm } from '../../../lib/medidas/medidas';
-import { type Parede } from '../../../lib/projetos/projetos';
+import { comUnidade } from '../../../lib/medidas/medidas';
+import { type ColagemElemento, type Parede, type Posicao } from '../../../lib/projetos/projetos';
+import { SENTIDO_Z } from '../../../lib/transformacoes/convencao';
 import { type ElementoEditor, estaDentro } from '../../../store/editorStore';
 import { DISTANCIA_MAXIMA_VIZINHO, EIXOS_GAP, PERPENDICULARES_GAP, TOLERANCIA_COLISAO } from './constantes';
 import { celulasParede, vaoParaRecorte } from './paredes';
@@ -114,10 +115,13 @@ function* colisoresColidiveis(
   objetos: Map<string, ObjetoElemento>,
   elementos: Record<string, ElementoEditor>,
   chaveMovida: string,
+  /** Colagem: qualquer superfície serve de alvo, tenha ou não a colisão ativada; `ignorar` tira da lista (ex.: a seleção que se move junto) */
+  opcoes?: { semExigirColisao?: boolean; ignorar?: Set<string> },
 ): Generator<Colisor> {
   for (const [chave, objeto] of objetos) {
     const elemento = elementos[chave];
-    if (!elemento?.colisao) continue;
+    if (!elemento || opcoes?.ignorar?.has(chave)) continue;
+    if (!elemento.colisao && !opcoes?.semExigirColisao) continue;
     if (estaDentro(elementos, chave, chaveMovida) || estaDentro(elementos, chaveMovida, chave)) continue;
 
     if (elemento.tipo === 'grupo') continue;
@@ -268,7 +272,7 @@ function atualizarEtiquetasDistancia(
     if (!gap) continue;
     const html = document.createElement('div');
     html.className = classeEtiqueta;
-    html.textContent = `${formatarCm(gap.distancia)} cm`;
+    html.textContent = comUnidade(gap.distancia);
     const etiqueta = new CSS2DObject(html);
     etiqueta.position.copy(gap.posicao);
     grupo.add(etiqueta);
@@ -340,7 +344,7 @@ function atualizarEtiquetasDistanciaAbertura(
     if (distancia <= 0) return;
     const html = document.createElement('div');
     html.className = classeEtiqueta;
-    html.textContent = `${formatarCm(distancia)} cm`;
+    html.textContent = comUnidade(distancia);
     const etiqueta = new CSS2DObject(html);
     etiqueta.position.copy(objetoParede.container.localToWorld(local.clone()));
     grupo.add(etiqueta);
@@ -386,4 +390,168 @@ export function reancorarArraste(transform: TransformControls, posicao: Vector3)
   const interno = transform as unknown as { pointStart?: Vector3; pointEnd?: Vector3; _positionStart?: Vector3 };
   interno._positionStart?.copy(posicao);
   if (interno.pointStart && interno.pointEnd) interno.pointStart.copy(interno.pointEnd);
+}
+
+// COLAGEM: ao aproximar um elemento com colagem (ver ColagemElemento) de uma superfície do tipo
+// escolhido — a face de uma parede, de outro módulo, do piso ou o chão —, ele gira pra a BASE dele
+// (plano Z = 0 dos eixos próprios, com o Z próprio apontando pra fora) encostar nela, como a colagem
+// dos componentes do SketchUp. Gira o menor ângulo possível, em torno do centro da caixa dele, e só
+// anda no sentido da superfície: o deslize ao longo dela continua livre.
+
+/** Distância (mm) entre a caixa do elemento e a superfície a partir da qual ele se gruda */
+const DISTANCIA_COLAGEM = 100;
+// Inclinação (do plano) até a qual uma face ainda conta como horizontal/vertical: 1°
+const SENO_TOLERANCIA_COLAGEM = Math.sin(Math.PI / 180);
+
+interface FaceColavel {
+  ponto: Vector3;
+  normal: Vector3;
+  /** Eixos do retângulo da face e a meia-extensão em cada um; nulos = plano infinito (o chão) */
+  u: Vector3 | null;
+  v: Vector3 | null;
+  meioU: number;
+  meioV: number;
+}
+
+function* facesDaOrientada(o: OBB): Generator<FaceColavel> {
+  const eixos = [new Vector3(), new Vector3(), new Vector3()];
+  o.rotation.extractBasis(eixos[0], eixos[1], eixos[2]);
+  const meias = [o.halfSize.x, o.halfSize.y, o.halfSize.z];
+  for (let i = 0; i < 3; i++) {
+    const [j, k] = [(i + 1) % 3, (i + 2) % 3];
+    for (const sinal of [1, -1]) {
+      const normal = eixos[i].clone().multiplyScalar(sinal);
+      yield {
+        ponto: o.center.clone().addScaledVector(normal, meias[i]),
+        normal,
+        u: eixos[j],
+        v: eixos[k],
+        meioU: meias[j],
+        meioV: meias[k],
+      };
+    }
+  }
+}
+
+const serveParaColagem = (tipo: ColagemElemento, normal: Vector3) => {
+  const inclinacao = Math.abs(normal.y);
+  if (tipo === 'qualquer') return true;
+  if (tipo === 'horizontal') return inclinacao > 1 - SENO_TOLERANCIA_COLAGEM ** 2 / 2;
+  if (tipo === 'vertical') return inclinacao < SENO_TOLERANCIA_COLAGEM;
+  if (tipo === 'inclinada') return inclinacao >= SENO_TOLERANCIA_COLAGEM && inclinacao <= 1 - SENO_TOLERANCIA_COLAGEM ** 2 / 2;
+  return false;
+};
+
+/** Gira e encosta `alvo` (um contêiner de elemento) na superfície colável mais próxima, se houver uma
+ * a menos de DISTANCIA_COLAGEM. `ignorar` são os elementos que se movem junto com ele. Devolve se mexeu */
+export function ajustarColagem(
+  objetos: Map<string, ObjetoElemento>,
+  elementos: Record<string, ElementoEditor>,
+  chave: string,
+  alvo: Object3D,
+  tipo: ColagemElemento,
+  ignorar: Set<string>,
+): boolean {
+  const pai = alvo.parent;
+  if (!pai || tipo === 'nenhuma') return false;
+
+  alvo.updateWorldMatrix(true, true);
+  const caixaLocal = caixaLocalDoContainer(alvo);
+  if (caixaLocal.isEmpty()) return false;
+  const movida = orientadaNoMundo(caixaLocal, alvo.matrixWorld);
+  const eixosMovida = [new Vector3(), new Vector3(), new Vector3()];
+  movida.rotation.extractBasis(eixosMovida[0], eixosMovida[1], eixosMovida[2]);
+  const meiasMovida = [movida.halfSize.x, movida.halfSize.y, movida.halfSize.z];
+  // Quanto a caixa se estende de cada lado do centro, medido ao longo de `direcao`
+  const alcance = (direcao: Vector3) =>
+    eixosMovida.reduce((soma, eixo, i) => soma + Math.abs(eixo.dot(direcao)) * meiasMovida[i], 0);
+
+  let melhor: { face: FaceColavel; folga: number } | null = null;
+  const considerar = (face: FaceColavel) => {
+    if (!serveParaColagem(tipo, face.normal)) return;
+    const relativo = movida.center.clone().sub(face.ponto);
+    const distancia = relativo.dot(face.normal);
+    // O centro tem que estar do lado de fora da face, senão o elemento já está "dentro" do obstáculo
+    if (distancia <= 0) return;
+    const folga = distancia - alcance(face.normal);
+    // Já bem enfiado na face (folga muito negativa) não é "perto": não cola
+    if (Math.abs(folga) > DISTANCIA_COLAGEM || (melhor && Math.abs(folga) >= Math.abs(melhor.folga))) return;
+    if (face.u && face.v) {
+      relativo.addScaledVector(face.normal, -distancia);
+      if (Math.abs(relativo.dot(face.u)) > face.meioU + alcance(face.u)) return;
+      if (Math.abs(relativo.dot(face.v)) > face.meioV + alcance(face.v)) return;
+    }
+    melhor = { face, folga };
+  };
+
+  for (const colisor of colisoresColidiveis(objetos, elementos, chave, { semExigirColisao: true, ignorar })) {
+    for (const face of facesDaOrientada(colisor.orientada)) considerar(face);
+  }
+  // O chão (y = 0 no mundo) é uma superfície horizontal sem fim
+  considerar({ ponto: new Vector3(), normal: new Vector3(0, 1, 0), u: null, v: null, meioU: 0, meioV: 0 });
+  if (!melhor) return false;
+  const { normal, ponto } = (melhor as { face: FaceColavel }).face;
+
+  // Gira o menor ângulo que leva o Z próprio (o "pra cima" do contêiner) até a normal da superfície,
+  // em torno do centro da caixa
+  const posicaoAntes = alvo.position.clone();
+  const quaternionAntes = alvo.quaternion.clone();
+  const qMundo = alvo.getWorldQuaternion(new Quaternion());
+  const qPai = pai.getWorldQuaternion(new Quaternion());
+  const paiInverso = qPai.clone().invert();
+  const cima = new Vector3(0, 1, 0).applyQuaternion(qMundo);
+  const qNova = new Quaternion().setFromUnitVectors(cima, normal).multiply(qMundo);
+  const qLocal = paiInverso.clone().multiply(qNova);
+  const centroCaixa = caixaLocal.getCenter(new Vector3());
+  const centroNoPai = centroCaixa.clone().applyQuaternion(alvo.quaternion).add(alvo.position);
+  alvo.quaternion.copy(qLocal);
+  alvo.position.copy(centroNoPai.sub(centroCaixa.clone().applyQuaternion(qLocal)));
+
+  // Encosta o centro da base (a menor altura própria) no plano da superfície
+  alvo.updateWorldMatrix(true, false);
+  const base = alvo.localToWorld(new Vector3(centroCaixa.x, caixaLocal.min.y, centroCaixa.z));
+  const ajuste = normal.clone().multiplyScalar(ponto.clone().sub(base).dot(normal));
+  alvo.position.add(ajuste.applyQuaternion(paiInverso));
+  alvo.updateWorldMatrix(true, true);
+
+  // Colar nunca pode enterrar o elemento no chão: se a pose colada ficaria abaixo dele, não cola
+  const colada = orientadaNoMundo(caixaLocal, alvo.matrixWorld);
+  if (envolventeDaOrientada(colada).min.y < -TOLERANCIA_COLISAO) {
+    alvo.position.copy(posicaoAntes);
+    alvo.quaternion.copy(quaternionAntes);
+    alvo.updateWorldMatrix(true, true);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Inserção por cursor: encosta o elemento fantasma `chave` na superfície onde o cursor bateu (`ponto`,
+ * com a `normal` da face, virada pra quem olha): o centro da caixa dele fica sobre o ponto e ela repousa
+ * na superfície — no chão ou em cima de outro módulo, a base; numa parede, o lado dele. Só desloca (a
+ * orientação não muda). Devolve a nova posição (relativa ao pai, em dados) ou nulo se não tem geometria
+ */
+export function posicionarFantasma(
+  objetos: Map<string, ObjetoElemento>,
+  chave: string,
+  ponto: Vector3,
+  normal: Vector3,
+): Posicao | null {
+  const alvo = objetos.get(chave)?.container;
+  const pai = alvo?.parent;
+  if (!alvo || !pai) return null;
+
+  alvo.updateWorldMatrix(true, true);
+  const caixa = caixaLocalDoContainer(alvo);
+  if (caixa.isEmpty()) return null;
+  const orientada = orientadaNoMundo(caixa, alvo.matrixWorld);
+  const eixos = [new Vector3(), new Vector3(), new Vector3()];
+  orientada.rotation.extractBasis(eixos[0], eixos[1], eixos[2]);
+  const meias = [orientada.halfSize.x, orientada.halfSize.y, orientada.halfSize.z];
+  const alcance = eixos.reduce((soma, eixo, i) => soma + Math.abs(eixo.dot(normal)) * meias[i], 0);
+
+  const deslocamento = ponto.clone().addScaledVector(normal, alcance).sub(orientada.center);
+  alvo.position.add(deslocamento.applyQuaternion(pai.getWorldQuaternion(new Quaternion()).invert()));
+  alvo.updateWorldMatrix(true, true);
+  return { x: alvo.position.x, y: SENTIDO_Z * alvo.position.z || 0, z: alvo.position.y };
 }
