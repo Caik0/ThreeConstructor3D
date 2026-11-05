@@ -1,0 +1,32 @@
+.campos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rotulo {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.erro {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #d33;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 480px) {
+  .campos {
+    grid-template-columns: 1fr;
+  }
+}
