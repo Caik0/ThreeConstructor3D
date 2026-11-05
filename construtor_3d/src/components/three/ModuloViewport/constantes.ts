@@ -17,10 +17,7 @@ export const OPACIDADE_FORA_DO_CONTEXTO = 0.2;
 // do dedo, pulso da mão) — ficava interpretando um toque parado como arraste (girava a câmera ou
 // arrastava um vértice sem querer), bem notado nas ferramentas de clique preciso (parede, trena)
 export const TOLERANCIA_CLIQUE = 10;
-// Passo do movimento pelas setas, em mm
-export const PASSO_MOVIMENTO = 10;
-// Passo da rotação pelos anéis, em graus
-export const PASSO_ROTACAO = 15;
+// Os passos do movimento e da rotação são do usuário (ver lib/configuracoes/configuracoes.ts)
 // Sentido do Y dos dados na cena (ver lib/transformacoes/convencao.ts, onde está a explicação da
 // convenção dos eixos); os pontos onde os dados viram a cena usam `SENTIDO_Z * y`, ex.:
 // container.position.set(x, z, SENTIDO_Z * y)
