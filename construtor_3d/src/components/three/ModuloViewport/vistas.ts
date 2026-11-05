@@ -1,7 +1,8 @@
 // Vistas do botão Enquadrar (isométrica, topo, base, frente, fundo, esquerda, direita) e o enquadramento da câmera.
 
-import { Box3, type Object3D, type PerspectiveCamera, Sphere, Vector3 } from 'three';
+import { Box3, MOUSE, type Object3D, type PerspectiveCamera, Sphere, Vector3 } from 'three';
 import { type Cena } from './tipos';
+import { type AcaoDoMouse, type BotaoDoMouse } from '../../../lib/configuracoes/configuracoes';
 
 // Posiciona a câmera para mostrar o objeto (e o extra, se houver) inteiros;
 // devolve false se não há o que mostrar
@@ -49,4 +50,21 @@ export function enquadrar({ camera, controls }: Cena, objeto: Object3D | Object3
   ajustarPlanosDeCorte(camera, centro);
   controls.update();
   return true;
+}
+
+const ACAO_DO_ORBITCONTROLS: Record<AcaoDoMouse, MOUSE | -1> = {
+  orbitar: MOUSE.ROTATE,
+  pan: MOUSE.PAN,
+  zoom: MOUSE.DOLLY,
+  // -1 não corresponde a nenhuma ação do OrbitControls: o botão fica sem efeito na câmera
+  nenhuma: -1,
+};
+
+/** O que cada botão do mouse faz na câmera (OrbitControls.mouseButtons), a partir das Configurações */
+export function botoesDoMouse(acoes: Record<BotaoDoMouse, AcaoDoMouse>) {
+  return {
+    LEFT: ACAO_DO_ORBITCONTROLS[acoes.esquerdo],
+    MIDDLE: ACAO_DO_ORBITCONTROLS[acoes.meio],
+    RIGHT: ACAO_DO_ORBITCONTROLS[acoes.direito],
+  } as { LEFT: MOUSE; MIDDLE: MOUSE; RIGHT: MOUSE };
 }
