@@ -121,8 +121,6 @@
   flex-direction: column;
   gap: 8px;
   max-width: min(90%, 640px);
-  /* Em telas baixas (celular deitado, teclado aberto etc.) o conteúdo pode não caber mesmo
-     compacto — rola dentro do próprio painel em vez de empurrar o topo por cima do cabeçalho */
   max-height: min(50vh, 420px);
   overflow-y: auto;
   padding: 10px 16px;
@@ -243,6 +241,24 @@
   border-radius: 8px;
   object-fit: cover;
   background: var(--bg);
+}
+
+.campoCategoriaTextura {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+
+  select {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 6px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: inherit;
+    background: var(--surface);
+    font: inherit;
+  }
 }
 
 .gradeTexturas {
@@ -436,4 +452,24 @@
   color: var(--text-h);
   white-space: nowrap;
   pointer-events: none;
+}
+
+/* Inserção por cursor: faixa no topo do viewport enquanto o elemento fantasma espera o clique */
+.avisoColocacao {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 16px);
+  padding: 6px 8px 6px 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--text-h);
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
 }
