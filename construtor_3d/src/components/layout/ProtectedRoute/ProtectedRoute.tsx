@@ -1,4 +1,6 @@
+import { useAplicarIdioma } from '../../../lib/idioma/idioma';
 import { Navigate, useLocation } from 'react-router-dom';
+import { useSincronizarConfiguracoes } from '../../../lib/hooks/useConfiguracoes';
 import { useAuthStore } from '../../../store/authStore';
 
 interface ProtectedRouteProps {
@@ -8,6 +10,9 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const token = useAuthStore((state) => state.token);
   const location = useLocation();
+  // Atalhos e preferências do usuário, em todas as telas protegidas (inclusive o editor)
+  useSincronizarConfiguracoes();
+  useAplicarIdioma();
 
   // Leva pra onde o usuário tentou ir antes de cair aqui: Login lê isso pra voltar depois de
   // entrar, em vez de sempre mandar pro mesmo lugar
