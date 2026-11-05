@@ -7,7 +7,7 @@ Editor 3D de módulos de marcenaria/cozinha no navegador — peças, paredes, pi
 - **React 19** + **TypeScript**
 - **Vite 8** — dev server e build
 - **three.js** — o viewport 3D (edição e miniaturas de módulo)
-- **Zustand** — estado global (autenticação, editor, orçamento)
+- **Zustand** — estado global (autenticação, editor, configurações, unidade, grade, orçamento)
 - **TanStack Query** — dados vindos da API (cache, mutações)
 - **React Router** — rotas
 - **React Hook Form** + **Zod** — formulários e validação
@@ -18,7 +18,7 @@ Editor 3D de módulos de marcenaria/cozinha no navegador — peças, paredes, pi
 ```
 src/
 ├── components/
-│   ├── layout/     — layouts (público, autenticado, dashboard) e o guard de rota
+│   ├── layout/     — layouts (login e o menu lateral, recolhível e com ícones no computador e gaveta com botão hambúrguer no celular (até 720px), usado em todas as telas logadas) e o guard de rota
 │   ├── three/      — o viewport 3D do editor e as miniaturas de módulo. `ModuloViewport/` guarda o componente (`ModuloViewport.tsx`: criação e sincronização da cena, ferramentas) e, na mesma pasta, os módulos de apoio sem React: `colisao`, `malhas`, `paredes`, `desenhos`, `construtorParedes`, `vistas`, `utilitarios`, `constantes` e `tipos`
 │   ├── ui/         — componentes de interface reutilizáveis
 │   └── orcamento/  — módulo de orçamento (em construção)
@@ -29,18 +29,19 @@ src/
 │   ├── formas/          — parâmetros e geometria das formas paramétricas (caixa, cilindro)
 │   ├── modelo3d/        — importação e leitura de arquivos .glb
 │   ├── projetos/        — tipos e regras de validação da árvore de elementos
-│   ├── medidas/         — conversão de unidades (mm ↔ cm) e fórmulas dos campos
+│   ├── medidas/         — conversão de unidades (mm, cm, m) e fórmulas dos campos
+│   ├── configuracoes/   — atalhos, botões do mouse e preferências do usuário (formato, padrões e validação)
 │   ├── transformacoes/  — posição/rotação/escala
 │   ├── textura/         — conversão e validação de imagens de textura
 │   ├── tema/            — tema claro/escuro
 │   └── auth/            — sessão e autenticação
 ├── pages/
-│   ├── auth/       — login e cadastro
+│   ├── auth/       — login (não há cadastro público)
 │   ├── public/     — home, projetos, módulos, sobre, serviços, status
-│   ├── dashboard/  — orçamentos, perfil
+│   ├── dashboard/  — orçamentos e administração (usuários, empresas)
 │   └── editor/     — o editor 3D em si (ProjetoEditor, ModuloEditor)
 ├── router/         — definição das rotas
-└── store/          — stores do Zustand (autenticação, editor, orçamento)
+└── store/          — stores do Zustand (autenticação, editor, configurações, unidade, grade, orçamento)
 ```
 
 ## Rodando o projeto
@@ -86,19 +87,28 @@ yarn lint      # oxlint
 
 | Rota | Descrição |
 | --- | --- |
-| `/login`, `/cadastro` | Autenticação |
+| `/login` | Autenticação |
+| `/admin/usuarios` | Usuários da empresa (só admin), em cartões (como Empresas), com: cadastro pessoal (país, documento fiscal, telefones, estado e cidade, com as mesmas máscaras e listas de Empresas — `CamposLocalidade.tsx`), status com interruptor para bloquear (pede o motivo), detalhes expansíveis, filtros e permissões |
+| `/admin/grupos` e `/admin/classificacoes` | Grupos e classificações da empresa (só admin), duas telas (`AdminCadastro.tsx`, configurada por `tipo`), cada uma com uma aba por tipo de item (`Abas`): **Módulos** lista o cadastro (`PainelCadastro.tsx`, um painel configurado por recurso); **Componentes** é um aviso até existirem componentes, que entrarão como mais dois recursos. O item padrão não se exclui, e o que está em uso por módulos também não |
+| `/admin/empresas` | Cadastro, edição e bloqueio de empresas, (só super admin, `RotaSuperAdmin`). País, estado e cidade vêm de APIs públicas e o documento fiscal segue o país escolhido |
 | `/projetos` | Lista de projetos |
 | `/projetos/:id` | Editor de um projeto (tela cheia) |
-| `/modulos` | Catálogo de módulos salvos |
+| `/modulos` | Catálogo de módulos salvos, com filtros por grupo e classificação. Todo módulo tem um grupo e uma classificação (os diálogos de salvar, importar e editar usam `CamposGrupoClassificacao`; a importação automática usa os padrões) |
 | `/modulos/:id` | Editor de um módulo (tela cheia) |
 | `/orcamentos` | Orçamentos |
-| `/perfil` | Perfil do usuário |
+| `/configuracoes` | Atalhos, mouse, passos, encaixe e unidade padrão |
 
-Todas as rotas exigem login, exceto `/login` e `/cadastro`.
+**Empresa, idioma e unidade:** `usuario.empresa` (vem da API no login e em `/auth/eu`) traz o idioma e a unidade de medida padrão da empresa. A unidade vale quando o usuário não escolheu uma em Configurações (`unidadePadrao` nulo = "Padrão da empresa"; ver `unidadePadraoEfetiva` em `unidadeStore.ts`). O idioma (`lib/idioma/idioma.ts`) define o `lang` da página e o formato de datas; os textos da interface ainda são só em português.
+
+**Super admin em outra empresa:** O seletor "Ambiente da empresa" (menu lateral, só para o super admin; no lugar do antigo "Meu perfil", que foi removido) guarda a empresa em `authStore.empresaAtivaId` (localStorage) e o cliente da API passa a mandar `X-Empresa-Id`; `useTrocarEmpresaAtiva` recarrega o usuário (cuja `empresa` vira a escolhida) e descarta o cache. Novo usuário: o admin já marca "Administrador" e as permissões no próprio diálogo de criação.
+
+**Localidades e documento fiscal (cadastro de empresas):** `lib/localidades/localidades.ts` consulta, direto do navegador e sem chave, o IBGE (UFs e municípios do Brasil) e a countriesnow.space (países com código ISO, estados e cidades do resto do mundo); o nome do país é traduzido pelo navegador (`Intl.DisplayNames`). O país é guardado como código ISO (`BR`). Se uma API cair, o campo vira texto livre. `lib/localidades/documentos.ts` define o documento fiscal por país: CPF/CNPJ com dígitos verificadores no Brasil (campo `cpfCnpj`), NIF em Portugal, EIN nos EUA, CUIT na Argentina e texto livre nos demais (campo `documentoFiscal`). Armazenamento e versão não aparecem no formulário e ficam vazios por enquanto.
+
+Todas as rotas exigem login, exceto `/login`.
 
 ## Convenções do domínio
 
-- Medidas são guardadas em milímetros; a interface exibe em centímetros.
+- Medidas são guardadas em milímetros; a interface exibe na unidade escolhida (cm por padrão; mm ou m pelo botão do editor ou em Configurações). Isso é só máscara (`store/unidadeStore.ts`): estado, API e banco ficam em mm, e fórmulas são sempre escritas e calculadas em cm.
 - A origem de peças e grupos fica no canto **atrás-inferior-esquerdo** (as paredes têm a origem no meio da espessura). O X cresce para a direita, o Z para cima e o **Y para a frente** (em direção a quem olha). Projetos e módulos salvos antes dessa mudança (`convencaoEixos` 1: origem na frente, Y para trás) são convertidos automaticamente ao abrir, mantendo o mesmo desenho, e passam para a convenção nova no próximo Salvar — ver `src/lib/transformacoes/convencao.ts` e `src/lib/projetos/converterConvencao.ts`.
 - Campos numéricos aceitam contas (`60+1,8`) e fórmulas com referências a outros campos do mesmo elemento (`largura/2`) ou ao elemento pai (`Parent!largura/2`).
 - Uma peça é uma forma paramétrica (caixa ou cilindro) **ou** um modelo importado (`.glb`), nunca os dois.
@@ -110,12 +120,18 @@ Quase tudo abaixo vive em `src/store/editorStore.ts` (o estado do editor) e `src
 - **Categoria** (`estrutura`, `ferragem`, `furacao`): só peças e grupos. Serve pra separar o catálogo de módulos por abas e pra filtrar na hora de substituir ou adicionar uma ferragem. Módulos antigos, sem categoria gravada, contam como estrutura.
 - **Furos**: não existe um "tipo furo". Um furo é um **cilindro de categoria furação**, criado dentro do elemento selecionado — o passante atravessa o módulo; o de face é posicionado a partir da face escolhida e avança 0,5 mm pra fora dela (senão ficaria escondido dentro da peça). Não há recorte da malha (CSG): o furo é marcado, não escavado.
 - **Ferragens**: módulos do catálogo com categoria ferragem; a modal "Nova ferragem" insere uma cópia no elemento selecionado, com posição e rotação definidas antes.
-- **Substituir** troca um elemento (e o conteúdo dele) por outro módulo, mantendo pai, ordem, posição e rotação. **Preencher vão** coloca um módulo dentro de um vão de porta ou janela, ajustado à largura e à altura dele; o vão vazio continua sendo o padrão. Um vão preenchido não acompanha mudanças posteriores no tamanho do vão — preencha de novo.
+- **Substituir** troca um elemento (e o conteúdo dele) por outro módulo da mesma categoria (estrutura só por estrutura, ferragem só por ferragem; o diálogo só lista esses e o store recusa o resto), mantendo pai, ordem, posição, rotação, medidas (o grupo novo é escalado para o tamanho do antigo), colisão, visibilidade, códigos e regra de repetição; nome e conteúdo são os do módulo novo. **Preencher vão** coloca um módulo dentro de um vão de porta ou janela, ajustado à largura e à altura dele; o vão vazio continua sendo o padrão. Um vão preenchido não acompanha mudanças posteriores no tamanho do vão — preencha de novo.
 - **Cópia dinâmica**: o elemento com `copias` configurado é o **modelo**; as cópias são irmãs dele, com `copiaDe` (a `referenciaEstavel` do modelo) e `indiceCopia`. A regra manda na **quantidade** e na **posição no eixo** da repetição; o resto (tamanho, medidas, textura) é de cada cópia e pode ser ajustado. As cópias são gravadas como elementos comuns e reconciliadas a **cada alteração** do estado (`regenerarCopias`, chamada pelo envelope de `set` do store): cria as que faltam, reposiciona as existentes, apaga as que sobram. Consequências: apagar uma cópia não é possível (a regra criaria outra), desligar a repetição apaga todas, e mudar o modelo depois não altera as cópias que já existem — o botão "Recriar cópias a partir do modelo" refaz tudo.
-- **Seleção múltipla**: mover e girar com o gizmo afetam todos os selecionados (cada um sofre o mesmo movimento do principal; na rotação, giram em torno dele). O conjunto colide como um só contra o que está fora da seleção.
+- **Colagem** (`colagem`: nenhuma, qualquer, horizontal, vertical, inclinada): no `objectChange` do arraste (`ModuloViewport.tsx`), `ajustarColagem` (`colisao.ts`) procura a face de outro elemento (qualquer um, com ou sem colisão) ou o chão a menos de 100 mm da caixa do elemento e do tipo escolhido, gira o menor ângulo para o Z próprio apontar pra fora dela e encosta a base (plano Z = 0). A cada movimento a colagem parte da rotação que o elemento tinha ao começar o arraste (afastar-se devolve a orientação) e o `TransformControls` continua enxergando essa rotação inicial durante o arraste (`updateMatrixWorld` da raiz do gizmo é envolvido em `ModuloViewport.tsx`), senão o movimento mudaria de eixo. Fica de fora com Shift e com seleção múltipla. Configura-se em "Personalizar eixos" ao criar e no botão "Eixos e colagem" do painel de Propriedades (`EixosEColagemDialog`, que também reconfigura os eixos de um elemento existente via `reorientarEixos`: a caixa fica no lugar e os filhos diretos são reescritos nos eixos novos; bloqueado se há fórmulas, variáveis, travados ou cópias, ver `motivoSemReorientar`); é gravada na API (`Elemento.Colagem`).
+- **Inserção por cursor** (`colocacao` no `editorStore`): nova caixa/grupo (`NovoElementoDialog`), Duplicar e Inserir módulo criam o elemento normalmente (um passo de desfazer) e chamam `iniciarColocacao`; ele fica translúcido (`foraDoContexto` no viewport) e `pointermove` raio-cast contra as malhas (menos o próprio fantasma) e o chão leva-o até o ponto via `posicionarFantasma` (`colisao.ts`: centro da caixa sobre o ponto, repousando na superfície), sem gerar histórico (`posicionarColocacao`). O clique sem arrastar chama `confirmarColocacao`; Esc/Cancelar chamam `cancelarColocacao` (desfaz a criação) e salvar também cancela, pra nunca gravar o fantasma. No toque só vale o clique.
+- **Espelho**: valor reservado `espelho` em `texturas` de uma face; o viewport (`espelhos.ts`) cria um `Reflector` com a geometria do contorno da face, inclusive em modelos importados. As categorias de textura estão em `lib/textura/categorias.ts` (espelhadas na API).
+- **Configurações**: `configuracoesStore` guarda tudo em cache no `localStorage` e sincroniza com `PUT /api/configuracoes` (debounce de 700 ms); os atalhos dos editores são lidos de lá (`acaoDoAtalho`), não fixos no código.
+- **Grade**: `gradeStore` (só neste navegador) liga/desliga o `GridHelper` do piso; botão na `BarraFerramentas`.
+- **Esc**: volta para a ferramenta Selecionar; em Selecionar, desmarca e depois sai do grupo.
+- **Seleção múltipla**: mover, girar e excluir (Delete) com o gizmo afetam todos os selecionados (cada um sofre o mesmo movimento do principal; na rotação, giram em torno dele). O conjunto colide como um só contra o que está fora da seleção.
 - **Colisão e encaixe**: a colisão usa caixas **orientadas** (giram com o elemento), então uma parede girada fora de ângulos retos colide pela forma real. **Grupos não são sólidos**: quem colide são as peças, paredes e pisos de dentro deles, cada um pela geometria própria — por isso um objeto de fora entra na sala (o grupo de paredes) e bate nas paredes, e entra no vão entre os painéis de um armário. Ligar a colisão num grupo, sozinho, não o torna um bloco; o que decide é a colisão de cada peça. O encaixe magnético (30 mm) ignora elementos girados fora de múltiplos de 90°; um armário reto contra uma parede a 89,26° sempre terá uma cunha de vão — a correção é acertar o ângulo da parede.
 - **Enquadrar**: enquadra o elemento selecionado (ou o conjunto, com seleção múltipla); sem seleção, o grupo aberto ou o ambiente. O menu ao lado escolhe a vista (isométrica, topo, base, frente, fundo, esquerda, direita); ele é desenhado num portal no `<body>` porque o viewport é um contexto de empilhamento abaixo dos painéis laterais.
-- **Construtor de paredes**: o segundo ponto se marca só por clique; a partir dele o campo **Extensão da última parede** altera o comprimento da parede já marcada, movendo o último ponto na mesma direção.
+- **Construtor de paredes**: o segundo ponto se marca só por clique; a partir dele o campo **Extensão da última parede** (que ganha o foco a cada ponto novo) altera o comprimento da parede já marcada, movendo o último ponto na mesma direção. A **posição de construção** (centro/direita/esquerda) decide para que lado a espessura cresce; contorno aberto gera piso retangular pelas medidas das paredes.
 
 ## Página de ajuda
 
