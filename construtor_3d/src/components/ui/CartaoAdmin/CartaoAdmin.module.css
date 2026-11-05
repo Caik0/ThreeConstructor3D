@@ -1,0 +1,323 @@
+.secundario {
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.detalhes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px 20px;
+  margin: 0;
+
+  dt {
+    font-size: 0.75rem;
+    color: var(--text);
+  }
+
+  dd {
+    margin: 2px 0 0;
+    color: var(--text-h);
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+}
+
+.detalheLargo {
+  grid-column: 1 / -1;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+/* Interruptor: ligado = empresa ativa */
+.interruptor {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #d33;
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.15s ease;
+  }
+
+  &[aria-checked='true'] {
+    background: #2e9d5b;
+  }
+
+  &[aria-checked='true']::after {
+    transform: translateX(18px);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 2px;
+  }
+}
+
+.textoAtiva {
+  color: #2e9d5b;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.textoBloqueada {
+  color: #d33;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+/* Lista em cartões (Empresas e Usuários): cada cartão ocupa a linha toda e, no computador, é uma linha só:
+   título | dados | status | ações. Os detalhes abertos descem para uma segunda linha do próprio cartão */
+.cartoes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px;
+}
+
+.cartao {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.cartaoTopo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.cartaoTitulo {
+  flex: 1 1 160px;
+  min-width: 0;
+
+  h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    color: var(--text-h);
+    overflow-wrap: anywhere;
+  }
+}
+
+.cartaoMeta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+
+  dt {
+    font-size: 0.75rem;
+    color: var(--text);
+  }
+
+  dd {
+    margin: 2px 0 0;
+    color: var(--text-h);
+    overflow-wrap: anywhere;
+  }
+}
+
+.cartaoRodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.listaVazia {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 16px 4px;
+  text-align: center;
+  color: var(--text);
+}
+
+.botao {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: none;
+  color: var(--text-h);
+  font: inherit;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--accent-border);
+    color: var(--accent-text);
+  }
+}
+
+.seta {
+  display: inline-flex;
+  transition: transform 0.25s ease;
+}
+
+.setaAberta {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seta {
+    transition: none;
+  }
+}
+
+@media (min-width: 721px) {
+  .cartaoClicavel {
+    cursor: pointer;
+  }
+
+  /* O texto continua selecionável (para copiar); o cursor de texto avisa isso */
+  .cartaoClicavel :is(dd, dt, h3, .secundario) {
+    cursor: text;
+  }
+
+  .cartao {
+    display: grid;
+    grid-template-columns: minmax(160px, 1.2fr) minmax(0, 3fr) auto auto;
+    align-items: center;
+    gap: 0 20px;
+  }
+
+  /* Título e status viram itens da grade do cartão, com os dados no meio */
+  .cartaoTopo {
+    display: contents;
+  }
+
+  .cartaoTitulo {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .cartaoMeta {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .status {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .cartaoRodape {
+    grid-column: 4;
+    grid-row: 1;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  /* Recolher/expandir animando a altura: a linha da grade vai de 0fr a 1fr */
+  .detalhesInline {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition: grid-template-rows 0.25s ease, opacity 0.2s ease;
+  }
+
+  .detalhesInlineAberto {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+
+  /* Sem margem/borda aqui: com a linha em 0fr, nada pode sobrar fora do que está recortado */
+  .detalhesInlineConteudo {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .detalhesInlineConteudo > .secoes {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .detalhesInline {
+      transition: none;
+    }
+  }
+}
+
+@media (max-width: 720px) {
+  .cartoes {
+    padding: 8px;
+  }
+
+  .cartao {
+    padding: 12px;
+  }
+
+  /* O interruptor desce para baixo do nome em vez de brigar por espaço com ele */
+  .cartaoTitulo {
+    flex-basis: 100%;
+  }
+
+  /* Botões do rodapé em linha única, com "Detalhes" e os textos puxando o espaço */
+  .cartaoRodape .botao {
+    flex: 1 1 auto;
+  }
+}
+
+/* Janela de detalhes: o diálogo padrão, só mais largo e com rolagem se os dados forem muitos */
+.dialogoDetalhes {
+  composes: dialogo from '../DialogoConfirmacao/DialogoConfirmacao.module.css';
+  /* Larga no computador, para os dados ficarem lado a lado e caberem sem rolar; no celular ocupa a tela */
+  width: min(960px, calc(100% - 32px));
+  max-height: calc(100dvh - 48px);
+}
+
+.secoes {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.secao {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+
+  &:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent-text);
+  }
+}
