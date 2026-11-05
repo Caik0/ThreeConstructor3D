@@ -4,6 +4,7 @@ import {
   Box3,
   BufferGeometry,
   Group,
+  GridHelper,
   Line,
   LineBasicMaterial,
   LineDashedMaterial,
@@ -89,6 +90,7 @@ export interface Cena {
   raiz: Group;
   sala: Sala;
   eixosAmbiente: Group;
+  piso: GridHelper;
   eixosSelecao: Group;
   alvoEixos: Object3D | null;
   parede: DesenhoParede;
