@@ -2,10 +2,17 @@
   flex: 1;
   display: grid;
   grid-template-columns: 240px 1fr;
+  transition: grid-template-columns 0.18s ease;
   background: var(--bg);
 }
 
 .sidebar {
+  /* Fica parado na tela enquanto o conteúdo rola */
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100svh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   border-top: 4px solid var(--accent);
@@ -15,8 +22,33 @@
 
 .sidebarTopo {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 12px;
+}
+
+.botaoMenu {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-h);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bg);
+  }
+}
+
+.icone {
+  display: grid;
+  flex: none;
+  place-items: center;
 }
 
 .nav {
@@ -29,19 +61,25 @@
 
 .link,
 .linkAtivo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 10px 12px;
   border-radius: 8px;
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-h);
+  text-decoration: none;
 
   &:hover {
     background: var(--bg);
+    text-decoration: none;
   }
 }
 
 .linkAtivo {
   color: var(--accent-contrast);
+  text-decoration: none;
   background: var(--accent);
 
   &:hover {
@@ -70,6 +108,9 @@
   padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font: inherit;
   font-size: 0.9rem;
   color: var(--text-h);
@@ -83,7 +124,52 @@
 }
 
 .content {
-  padding: 24px;
+  min-width: 0;
+}
+
+/* Páginas ainda sem estilo próprio (título solto) ficam com respiro; as demais cuidam do próprio espaçamento */
+.content > :where(h1, h2, p) {
+  margin: 24px;
+}
+
+.navConta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Menu recolhido (só no computador): fica só a coluna de ícones, o nome vira dica ao passar o mouse */
+@media (min-width: 721px) {
+  .recolhido {
+    grid-template-columns: 64px 1fr;
+  }
+
+  .recolhido .rotuloLink {
+    display: none;
+  }
+
+  .recolhido .sidebarTopo {
+    flex-direction: column;
+  }
+
+  .recolhido .nav,
+  .recolhido .sidebarRodape {
+    padding-inline: 8px;
+  }
+
+  .recolhido .link,
+  .recolhido .linkAtivo,
+  .recolhido .sair {
+    justify-content: center;
+    padding-inline: 0;
+  }
+}
+
+/* Celular: o menu vira uma gaveta que desliza da esquerda, aberta pelo hambúrguer da barra do topo */
+.barraMobile,
+.fundo,
+.botaoFechar {
+  display: none;
 }
 
 @media (max-width: 720px) {
@@ -92,31 +178,102 @@
     grid-template-rows: auto 1fr;
   }
 
-  .sidebar {
-    min-height: 56px;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  /* Os 3 links empilhados verticalmente tomavam a tela toda antes do conteúdo — em linha
-     (quebrando se precisar) ocupam só o espaço que precisam */
-  .nav {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-
-  .sidebarRodape {
-    flex-direction: row;
-    flex-wrap: wrap;
+  .barraMobile {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    border-top: 4px solid var(--accent);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-h);
   }
 
-  .nomeUsuario {
-    max-width: 50vw;
+  .fundo {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: block;
+    background: rgb(0 0 0 / 0.5);
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 50;
+    width: min(280px, 85vw);
+    height: 100dvh;
+    border-right: 1px solid var(--border);
+    transform: translateX(-100%);
+    /* fechada, a gaveta sai da ordem de tabulação depois de deslizar para fora */
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+  }
+
+  .gavetaAberta {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.2s ease, visibility 0s;
+  }
+
+  .botaoFechar {
+    display: grid;
+  }
+
+  .botaoRecolher {
+    display: none;
   }
 
   .content {
     padding: 16px;
+  }
+}
+
+.seletorEmpresa {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  background: var(--accent-bg);
+  color: var(--accent-text);
+
+  select {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+
+  small {
+    flex-basis: 100%;
+    color: #d33;
+  }
+}
+
+/* Recolhido: só o ícone aparece; o <select> fica por cima, invisível, e continua abrindo a lista */
+@media (min-width: 721px) {
+  .recolhido .seletorEmpresa {
+    justify-content: center;
+    padding: 10px 0;
+
+    select {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      opacity: 0;
+    }
   }
 }
