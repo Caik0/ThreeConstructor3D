@@ -13,6 +13,7 @@ import {
   MeshBasicMaterial,
   PerspectiveCamera,
   Plane,
+  Quaternion,
   Raycaster,
   Scene,
   SphereGeometry,
@@ -25,7 +26,9 @@ import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import CampoMedida from '../../ui/CampoMedida/CampoMedida';
 import { FACES_TEXTURA, facesDaForma, parametrosValidos } from '../../../lib/formas/formas';
-import { formatarCm } from '../../../lib/medidas/medidas';
+import { useGradeStore } from '../../../store/gradeStore';
+import { configuracoesAtuais, useConfiguracoesStore } from '../../../store/configuracoesStore';
+import { comUnidade, useUnidadeMedida } from '../../../lib/medidas/medidas';
 import {
   LIMITE_POSICAO,
   MEDIDA_MAXIMA,
@@ -38,6 +41,7 @@ import {
 } from '../../../lib/projetos/projetos';
 import { useImportacaoAutomaticaTexturas } from '../../../lib/hooks/useImportacaoAutomaticaTexturas';
 import { useTexturas } from '../../../lib/hooks/useTexturas';
+import { CATEGORIAS_DE_TEXTURA, type CategoriaTextura, ROTULO_CATEGORIA_TEXTURA } from '../../../lib/textura/categorias';
 import { ehCorSolida, lerTexturaJpeg } from '../../../lib/textura/textura';
 import {
   type AlinhamentoParede,
@@ -54,10 +58,13 @@ import {
   estaDentro,
   type Ferramenta,
   pontosDoEixoDaParede,
+  useEditorStore,
 } from '../../../store/editorStore';
 import styles from './ModuloViewport.module.css';
 import {
   atualizarEtiquetasDistanciaDoArraste,
+  ajustarColagem,
+  posicionarFantasma,
   haColisao,
   haColisaoDeslocada,
   reancorarArraste,
@@ -72,8 +79,6 @@ import {
   COR_TRENA,
   ESPESSURA_PADRAO_PAREDE,
   LIMIAR_FECHAR_CONTORNO,
-  PASSO_MOVIMENTO,
-  PASSO_ROTACAO,
   PE_DIREITO_PADRAO,
   RAIO_MARCADOR_TRENA,
   SENTIDO_Z,
@@ -124,7 +129,7 @@ import {
   ponteiroNormalizado,
   rotacaoDaCena,
 } from './utilitarios';
-import { ajustarPlanosDeCorte, enquadrar, ORDEM_DAS_VISTAS, type VistaId, VISTAS } from './vistas';
+import { ajustarPlanosDeCorte, botoesDoMouse, enquadrar, ORDEM_DAS_VISTAS, type VistaId, VISTAS } from './vistas';
 
 interface ModuloViewportProps {
   elementos: Record<string, ElementoEditor>;
@@ -202,6 +207,12 @@ export default function ModuloViewport({
   const ferramentaRef = useRef(ferramenta);
   // Última posição do arraste sem colisão, para "segurar" o elemento nela ao encostar num sólido
   const ultimaPosicaoValidaRef = useRef(new Vector3());
+  // Colagem (ver ajustarColagem): a rotação que o elemento tinha ao começar o arraste — é dela que a
+  // colagem parte a cada movimento, então afastar-se da superfície devolve a orientação original — e se
+  // o último movimento estava colado (pra gravar a rotação de volta quando solta)
+  const orientacaoInicialRef = useRef<Quaternion | null>(null);
+  // Rotação do último movimento aceito (sem colisão): a posição aceita só vale junto com a rotação que ela tinha
+  const ultimaOrientacaoValidaRef = useRef(new Quaternion());
   // Shift segurado: a colisão do elemento movido fica desativada até soltar (ver objectChange)
   const shiftSeguradoRef = useRef(false);
   useEffect(() => {
@@ -226,6 +237,30 @@ export default function ModuloViewport({
 
   // Construtor de paredes: cantos já confirmados (clique a clique) e ponto sob o mouse no piso,
   // ambos em coordenadas de dados (mm, y sempre 0); zerados sempre que a ferramenta muda
+  // Unidade mostrada (a máscara escolhida pelo usuário): re-renderiza e refaz as etiquetas ao trocar
+  const unidadeMostrada = useUnidadeMedida();
+  // Passos do movimento e da rotação escolhidos em Configurações: valem na hora, sem recarregar a cena
+  // Inserção por cursor (ver `colocacao` no editorStore): o fantasma segue o cursor até o clique
+  const colocacao = useEditorStore((s) => s.colocacao);
+  const colocacaoRef = useRef(colocacao);
+  colocacaoRef.current = colocacao;
+  const passoMovimento = useConfiguracoesStore((s) => s.configuracoes.passoMovimento);
+  const passoRotacao = useConfiguracoesStore((s) => s.configuracoes.passoRotacao);
+  const acoesDoMouse = useConfiguracoesStore((s) => s.configuracoes.mouse);
+  useEffect(() => {
+    const controls = cenaRef.current?.controls;
+    if (controls) controls.mouseButtons = botoesDoMouse(acoesDoMouse);
+  }, [acoesDoMouse]);
+  const gradeVisivel = useGradeStore((s) => s.visivel);
+  useEffect(() => {
+    const piso = cenaRef.current?.piso;
+    if (piso) piso.visible = gradeVisivel;
+  }, [gradeVisivel]);
+  useEffect(() => {
+    const transform = cenaRef.current?.transform;
+    transform?.setTranslationSnap(passoMovimento);
+    transform?.setRotationSnap(MathUtils.degToRad(passoRotacao));
+  }, [passoMovimento, passoRotacao]);
   const [pontosParede, setPontosParede] = useState<Posicao[]>([]);
   const [mouseNoChao, setMouseNoChao] = useState<Posicao | null>(null);
   const [espessuraParede, setEspessuraParede] = useState(ESPESSURA_PADRAO_PAREDE);
@@ -273,6 +308,8 @@ export default function ModuloViewport({
   // um diálogo à parte) — ativo só com o modo "Imagem" aberto, pra não buscar/importar à toa
   const painelDeImagemAberto = ferramenta === 'pintura' && modoTinta === 'imagem';
   const texturasSalvas = useTexturas();
+  // Filtro do catálogo por tipo de textura (espelho, metálica...)
+  const [filtroCategoriaTextura, setFiltroCategoriaTextura] = useState<CategoriaTextura | 'todas'>('todas');
   const importandoTexturaAutomaticamente = useImportacaoAutomaticaTexturas(painelDeImagemAberto);
   // Foco num módulo (peça ou grupo): esconde tudo que não for ele, um ancestral dele (só pra
   // hierarquia de containers renderizar, ver o efeito de sincronização) ou algo dentro dele —
@@ -408,6 +445,7 @@ export default function ModuloViewport({
     const piso = new GridHelper(TAMANHO_GRADE, TAMANHO_GRADE / 100, 0x888888, 0x888888);
     piso.material.transparent = true;
     piso.material.opacity = 0.3;
+    piso.visible = useGradeStore.getState().visivel;
     scene.add(piso);
 
     const camera = new PerspectiveCamera(45, 1, 10, 100000);
@@ -419,6 +457,12 @@ export default function ModuloViewport({
     // não de onde o cursor está — dentro de uma sala (paredes bem perto da câmera), isso faz o
     // zoom "puxar" pro lado errado o tempo todo
     controls.zoomToCursor = true;
+    controls.mouseButtons = botoesDoMouse(configuracoesAtuais().mouse);
+    // Clique do meio (roda) pressionado: sem isto o navegador abre o "rolagem automática" em vez de
+    // deixar o botão mover a câmera
+    renderer.domElement.addEventListener('mousedown', (e) => {
+      if (e.button === 1) e.preventDefault();
+    });
     controls.target.set(0, 400, 0);
     controls.update();
     // Zoom e giro mudam a distância até o alvo: os planos de corte vão junto (ver vistas.ts)
@@ -447,18 +491,39 @@ export default function ModuloViewport({
 
     // Setas de X, Y e Z para mover o elemento selecionado
     const transform = new TransformControls(camera, renderer.domElement);
-    transform.setTranslationSnap(PASSO_MOVIMENTO);
-    transform.setRotationSnap(MathUtils.degToRad(PASSO_ROTACAO));
+    transform.setTranslationSnap(configuracoesAtuais().passoMovimento);
+    transform.setRotationSnap(MathUtils.degToRad(configuracoesAtuais().passoRotacao));
     // Enquanto arrasta uma seta, a câmera não gira; ao começar, guarda a posição de partida
     // (sem colisão, já que o elemento estava parado ali) para poder voltar a ela se precisar
     transform.addEventListener('dragging-changed', (e) => {
       controls.enabled = !e.value;
       if (e.value && transform.object) ultimaPosicaoValidaRef.current.copy(transform.object.position);
+      orientacaoInicialRef.current = e.value && transform.object ? transform.object.quaternion.clone() : null;
+      if (e.value && transform.object) ultimaOrientacaoValidaRef.current.copy(transform.object.quaternion);
       if (!e.value) {
         limparEtiquetas(distancias);
         distancias.visible = false;
       }
     });
+    // Durante o arraste de um elemento colado, o TransformControls continua enxergando a orientação de
+    // ANTES da colagem (setas, plano de arraste e eixos de movimento): se ele acompanhasse a rotação que a
+    // colagem faz no meio do movimento, o arraste daria saltos e mudaria de eixo
+    const raizTransform = transform.getHelper();
+    const atualizarRaizTransform = raizTransform.updateMatrixWorld.bind(raizTransform);
+    raizTransform.updateMatrixWorld = (force?: boolean) => {
+      const alvo = transform.object;
+      const inicial = orientacaoInicialRef.current;
+      if (!alvo || !inicial || !transform.dragging || transform.mode !== 'translate') {
+        atualizarRaizTransform(force);
+        return;
+      }
+      const atual = alvo.quaternion.clone();
+      alvo.quaternion.copy(inicial);
+      alvo.updateMatrixWorld(true);
+      atualizarRaizTransform(force);
+      alvo.quaternion.copy(atual);
+      alvo.updateMatrixWorld(true);
+    };
     transform.addEventListener('objectChange', () => {
       const alvo = transform.object;
       if (!alvo) return;
@@ -497,8 +562,23 @@ export default function ModuloViewport({
       // Encaixe: gruda numa face de um irmão do mesmo grupo, se estiver perto o bastante. Z dos
       // dados é o Y nativo da cena (altura); Y dos dados é o Z nativo (profundidade, espelhado)
       const posicaoBruta = { x: alvo.position.x, y: (SENTIDO_Z * alvo.position.z) || 0, z: alvo.position.y };
-      const posicaoComEncaixe = calcularEncaixe({ elementos: elementosAtuais, filhos: {} }, chave, posicaoBruta, companheiros);
+      const posicaoComEncaixe = configuracoesAtuais().encaixeMagnetico
+        ? calcularEncaixe({ elementos: elementosAtuais, filhos: {} }, chave, posicaoBruta, companheiros)
+        : posicaoBruta;
       alvo.position.set(posicaoComEncaixe.x, posicaoComEncaixe.z, SENTIDO_Z * posicaoComEncaixe.y);
+
+      // Colagem: perto de uma superfície do tipo escolhido, o elemento gira e encosta a base nela; longe
+      // dela, volta à orientação que tinha ao começar o arraste. Fica de fora com Shift (como a colisão)
+      // e com várias peças selecionadas (essas giram juntas só pelo gizmo)
+      const posicaoAntesDaColagem = alvo.position.clone();
+      const colagem = todos[chave].colagem ?? 'nenhuma';
+      const orientacaoInicial = orientacaoInicialRef.current;
+      if (colagem !== 'nenhuma' && orientacaoInicial) {
+        alvo.quaternion.copy(orientacaoInicial);
+        if (!shiftSeguradoRef.current && raizesCompanheiras.length === 0) {
+          ajustarColagem(objetosRef.current, todos, chave, alvo, colagem, companheiros);
+        }
+      }
 
       // Colisão: barra o movimento que sobreporia outro elemento também sólido. Vale pro elemento e,
       // numa seleção múltipla, pro conjunto todo: cada elemento da seleção, deslocado do mesmo tanto
@@ -523,12 +603,15 @@ export default function ModuloViewport({
       };
 
       if (colide()) {
+        // A última posição livre vale com a rotação que ela tinha: com a rotação desta colagem, a mesma
+        // posição poderia pôr o elemento dentro do chão ou de uma parede. Volta à rotação aceita e desliza daí
+        alvo.quaternion.copy(ultimaOrientacaoValidaRef.current);
         // Em vez de voltar pra posição do evento anterior (o que deixava um vão do tamanho do passo
         // do mouse, maior quanto mais rápido o arraste), encosta no obstáculo: eixo por eixo, a
         // partir da última posição livre, vai até onde der — tenta o eixo inteiro e, se bater,
         // procura por bissecção o ponto mais longe ainda livre. Eixo por eixo também deixa o
         // elemento deslizar ao longo de uma parede em vez de travar
-        const proposta = alvo.position.clone();
+        const proposta = posicaoAntesDaColagem;
         const aceita = ultimaPosicaoValidaRef.current.clone();
         for (const eixo of ['x', 'y', 'z'] as const) {
           alvo.position.copy(aceita);
@@ -554,13 +637,20 @@ export default function ModuloViewport({
       }
 
       ultimaPosicaoValidaRef.current.copy(alvo.position);
+      const rotacaoMudou = !alvo.quaternion.equals(ultimaOrientacaoValidaRef.current);
+      ultimaOrientacaoValidaRef.current.copy(alvo.quaternion);
       atualizarEtiquetasDistanciaDoArraste(distancias, objetosRef.current, elementosAtuais, chave, alvo, styles.etiquetaDistancia);
 
       callbacksRef.current.onTransformar(chave, {
         posicao: { x: alvo.position.x, y: (SENTIDO_Z * alvo.position.z) || 0, z: alvo.position.y },
+        ...(rotacaoMudou ? { rotacao: rotacaoDaCena(alvo) } : {}),
       });
     });
     transform.setColors(CORES_EIXOS[0], CORES_EIXOS[1], CORES_EIXOS[2], COR_MANIPULADOR_ATIVO);
+    // Setas e anéis nos eixos PRÓPRIOS do elemento, como os eixos da seleção (eixosSelecao): num
+    // elemento girado ou com eixos personalizados na criação (ver NovoElementoDialog), a seta
+    // vermelha é o X dele, não o do ambiente
+    transform.setSpace('local');
     scene.add(transform.getHelper());
 
     // Eixos do ambiente na origem, 1 mm acima do piso para não disputar com a grade; vão até a
@@ -583,6 +673,7 @@ export default function ModuloViewport({
       raiz,
       sala,
       eixosAmbiente,
+      piso,
       eixosSelecao,
       alvoEixos: null,
       parede,
@@ -624,7 +715,56 @@ export default function ModuloViewport({
       inicioClique.set(e.clientX, e.clientY);
       clicouNasSetas = transform.axis !== null;
     };
+    // Inserção por cursor: leva o elemento fantasma pro ponto sob o cursor (chão, topo ou lado de outro
+    // elemento) — o que tem o fantasma dentro não conta como superfície
+    const plano = new Plane(new Vector3(0, 1, 0), 0);
+    const colocarSobPonteiro = (e: MouseEvent): boolean => {
+      const chave = colocacaoRef.current;
+      if (!chave) return false;
+      const todos = elementosRef.current;
+      raycaster.setFromCamera(ponteiroNormalizado(e, renderer.domElement), camera);
+      const acerto = raycaster
+        .intersectObjects(malhasVisiveis(objetos), false)
+        .find((a) => {
+          const dono = a.object.userData.chave as string;
+          return dono !== chave && !estaDentro(todos, dono, chave);
+        });
+      const noChao = raycaster.ray.intersectPlane(plano, new Vector3());
+      let ponto: Vector3 | null = null;
+      const normal = new Vector3(0, 1, 0);
+      if (acerto && (!noChao || acerto.distance <= noChao.distanceTo(raycaster.ray.origin))) {
+        ponto = acerto.point;
+        if (acerto.face) normal.copy(acerto.face.normal).transformDirection(acerto.object.matrixWorld);
+        if (normal.dot(raycaster.ray.direction) > 0) normal.negate();
+      } else if (noChao) {
+        ponto = noChao;
+      }
+      if (!ponto) return false;
+      const posicao = posicionarFantasma(objetos, chave, ponto, normal);
+      if (!posicao) return false;
+      useEditorStore.getState().posicionarColocacao({
+        x: limitarPosicao(posicao.x),
+        y: limitarPosicao(posicao.y),
+        z: limitarPosicao(posicao.z),
+      });
+      return true;
+    };
+    // Só com o mouse solto (arrastar é mover a câmera); no toque não há "passar por cima": o clique decide
+    const aoMoverPonteiro = (e: PointerEvent) => {
+      if (colocacaoRef.current && e.buttons === 0 && e.pointerType !== 'touch') colocarSobPonteiro(e);
+    };
+    renderer.domElement.addEventListener('pointermove', aoMoverPonteiro);
+
     const aoSoltar = (e: PointerEvent) => {
+      // Só o botão esquerdo clica: os outros (movimentar a câmera) não selecionam nada
+      if (e.button !== 0) return;
+      if (colocacaoRef.current) {
+        // Clique sem arrastar confirma a inserção onde o cursor está (no toque, onde tocou)
+        if (inicioClique.distanceTo(new Vector2(e.clientX, e.clientY)) > TOLERANCIA_CLIQUE) return;
+        colocarSobPonteiro(e);
+        useEditorStore.getState().confirmarColocacao();
+        return;
+      }
       if (ferramentaRef.current === 'parede' || ferramentaRef.current === 'trena' || ferramentaRef.current === 'pintura' || clicouNasSetas) return;
       if (inicioClique.distanceTo(new Vector2(e.clientX, e.clientY)) > TOLERANCIA_CLIQUE) return;
       callbacksRef.current.onClicarPeca(pecaSobPonteiro(e), e.ctrlKey || e.metaKey);
@@ -665,6 +805,7 @@ export default function ModuloViewport({
       renderer.domElement.removeEventListener('webglcontextlost', aoPerderContexto);
       renderer.domElement.removeEventListener('pointerdown', aoPressionar);
       renderer.domElement.removeEventListener('pointerup', aoSoltar);
+      renderer.domElement.removeEventListener('pointermove', aoMoverPonteiro);
       renderer.domElement.removeEventListener('dblclick', aoDuploClique);
       observer.disconnect();
       transform.detach();
@@ -785,7 +926,9 @@ export default function ModuloViewport({
 
     // 4. Aparência: seleção destaca todo o conteúdo; fora do grupo aberto fica esmaecido
     for (const elemento of lista) {
-      const foraDoContexto = contexto !== null && !estaDentro(elementos, elemento.chave, contexto);
+      // O fantasma da inserção por cursor (e o que há dentro dele) aparece translúcido
+      const fantasma = colocacao !== null && (elemento.chave === colocacao || estaDentro(elementos, elemento.chave, colocacao));
+      const foraDoContexto = fantasma || (contexto !== null && !estaDentro(elementos, elemento.chave, contexto));
       const objeto = objetos.get(elemento.chave) as ObjetoElemento;
       aplicarAparencia(objeto, naSelecao(elemento.chave), foraDoContexto);
       if (elemento.tipo === 'peca' || elemento.tipo === 'grupo') definirEtiqueta(objeto, elemento, foraDoContexto);
@@ -862,7 +1005,7 @@ export default function ModuloViewport({
     }
 
     // Setas para mover, anéis para girar; o construtor de paredes não usa o gizmo 3D
-    const gizmoAtivo = ferramenta === 'mover' || ferramenta === 'girar';
+    const gizmoAtivo = colocacao === null && (ferramenta === 'mover' || ferramenta === 'girar');
     const alvo = gizmoAtivo && selecionada ? objetos.get(selecionada) : undefined;
     cena.transform.setMode(ferramenta === 'girar' ? 'rotate' : 'translate');
     if (!alvo) cena.transform.detach();
@@ -876,7 +1019,7 @@ export default function ModuloViewport({
     if (!enquadradoRef.current && enquadrar(cena, cena.raiz, planta ? cena.sala.grupo : undefined)) {
       enquadradoRef.current = true;
     }
-  }, [elementos, planta, selecionada, selecaoExtra, contexto, ferramenta, chaveEdicaoParede, explodido, chaveEmFoco]);
+  }, [elementos, planta, selecionada, selecaoExtra, contexto, ferramenta, chaveEdicaoParede, explodido, chaveEmFoco, colocacao]);
 
   const alturaParedes = alturaEdicaoParede ?? planta?.z ?? PE_DIREITO_PADRAO;
   const alinhamentoParede: AlinhamentoParede = chaveEdicaoParede ? 'central' : alinhamentoSelecionado;
@@ -954,6 +1097,7 @@ export default function ModuloViewport({
     const aoSoltar = (e: PointerEvent) => {
       const indiceArrastado = arrastandoIndiceRef.current;
       arrastandoIndiceRef.current = null;
+      if (e.button !== 0) return;
       const arrastou = inicioClique.distanceTo(new Vector2(e.clientX, e.clientY)) > TOLERANCIA_CLIQUE;
 
       if (indiceArrastado !== null && arrastou) {
@@ -1118,6 +1262,7 @@ export default function ModuloViewport({
     const inicioClique = new Vector2();
     const aoPressionar = (e: PointerEvent) => inicioClique.set(e.clientX, e.clientY);
     const aoSoltar = (e: PointerEvent) => {
+      if (e.button !== 0) return;
       if (inicioClique.distanceTo(new Vector2(e.clientX, e.clientY)) > TOLERANCIA_CLIQUE) return; // foi orbitar
       const ponto = pontoDeMedicao(e);
       if (ponto) setPontosTrena((atual) => [...atual, ponto]);
@@ -1169,6 +1314,7 @@ export default function ModuloViewport({
     const inicioClique = new Vector2();
     const aoPressionar = (e: PointerEvent) => inicioClique.set(e.clientX, e.clientY);
     const aoSoltar = (e: PointerEvent) => {
+      if (e.button !== 0) return;
       if (inicioClique.distanceTo(new Vector2(e.clientX, e.clientY)) > TOLERANCIA_CLIQUE) return; // foi orbitar
       raycaster.setFromCamera(ponteiroNormalizado(e, dom), camera);
       const [acerto] = raycaster.intersectObjects(malhasVisiveis(objetosRef.current), false);
@@ -1360,7 +1506,7 @@ export default function ModuloViewport({
       const meio = posicaoCena({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: (a.z + b.z) / 2 });
       const html = document.createElement('div');
       html.className = styles.etiquetaTrena;
-      html.textContent = `${formatarCm(distancia3D(a, b))} cm`;
+      html.textContent = comUnidade(distancia3D(a, b));
       const etiqueta = new CSS2DObject(html);
       etiqueta.position.copy(meio);
       etiquetas.add(etiqueta);
@@ -1388,7 +1534,7 @@ export default function ModuloViewport({
     } else {
       elastico.visible = false;
     }
-  }, [pontosTrena, mouseTrena, ferramenta]);
+  }, [pontosTrena, mouseTrena, ferramenta, unidadeMostrada]);
 
   async function importarImagemTinta(arquivo: File) {
     setCarregandoImagemTinta(true);
@@ -1440,7 +1586,7 @@ export default function ModuloViewport({
         ? `Clique em um elemento para ${ferramenta === 'mover' ? 'mover' : 'girar'}`
         : ferramenta === 'mover'
           ? 'Arraste as setas para mover em X, Y e Z'
-          : `Arraste os anéis para girar em X, Y e Z (passos de ${PASSO_ROTACAO}°)`;
+          : `Arraste os anéis para girar em X, Y e Z (passos de ${passoRotacao}°)`;
   const dica = contexto ? `${dicaFerramenta} · Esc sai` : dicaFerramenta;
 
   const ultimoPontoTrena = pontosTrena.at(-1);
@@ -1467,6 +1613,7 @@ export default function ModuloViewport({
     const anterior = totalCantosAnteriorRef.current;
     totalCantosAnteriorRef.current = totalCantosParede;
     if (ferramenta !== 'parede' || totalCantosParede < 2 || totalCantosParede <= anterior) return;
+    if (!configuracoesAtuais().focarExtensaoDaParede) return;
     const espera = window.setTimeout(() => {
       const campo = distanciaParedeInputRef.current;
       if (!campo) return;
@@ -1486,6 +1633,14 @@ export default function ModuloViewport({
   return (
     <div className={styles.viewport}>
       <div ref={containerRef} className={styles.canvas} />
+      {colocacao && (
+        <div className={styles.avisoColocacao} role="status">
+          <span>Clique (ou toque) onde quer inserir</span>
+          <button type="button" className={styles.botao} onClick={() => useEditorStore.getState().cancelarColocacao()}>
+            Cancelar (Esc)
+          </button>
+        </div>
+      )}
       <div className={styles.acoes}>
         <div ref={vistasRef} className={styles.vistas}>
           <button
@@ -1580,14 +1735,14 @@ export default function ModuloViewport({
                 </select>
               </label>
             )}
-            <span className={styles.infoParede}>Altura: {formatarCm(alturaParedes)} cm</span>
+            <span className={styles.infoParede}>Altura: {comUnidade(alturaParedes)}</span>
             {distanciaAtual !== null && fechandoContorno && (
               <span className={styles.infoParede}>Fechar contorno</span>
             )}
             {!chaveEdicaoParede && pontosParede.length === 1 && (
               <span className={styles.infoParede}>
                 Marque o segundo ponto: depois dele a extensão passa a ser digitada
-                {distanciaAtual !== null ? ` (agora: ${formatarCm(distanciaAtual)} cm)` : ''}
+                {distanciaAtual !== null ? ` (agora: ${comUnidade(distanciaAtual)})` : ''}
               </span>
             )}
             {extensaoUltimaParede !== null && (
@@ -1604,7 +1759,7 @@ export default function ModuloViewport({
               </div>
             )}
             {extensaoUltimaParede !== null && distanciaAtual !== null && !fechandoContorno && (
-              <span className={styles.infoParede}>Próxima: {formatarCm(distanciaAtual)} cm</span>
+              <span className={styles.infoParede}>Próxima: {comUnidade(distanciaAtual)}</span>
             )}
             <div className={styles.acoesParede}>
               <button type="button" className={styles.botaoSecundario} title="Cancelar (Esc)" onClick={onCancelarParede}>
@@ -1636,10 +1791,10 @@ export default function ModuloViewport({
           <p className={styles.dicaParede}>Clique para marcar pontos de medição</p>
           <div className={styles.linhaParede}>
             {distanciaSegmentoTrena !== null && (
-              <span className={styles.infoParede}>Segmento: {formatarCm(distanciaSegmentoTrena)} cm</span>
+              <span className={styles.infoParede}>Segmento: {comUnidade(distanciaSegmentoTrena)}</span>
             )}
             {pontosTrena.length > 1 && (
-              <span className={styles.infoParede}>Total: {formatarCm(distanciaTotalTrena)} cm</span>
+              <span className={styles.infoParede}>Total: {comUnidade(distanciaTotalTrena)}</span>
             )}
             <div className={styles.acoesParede}>
               <button
@@ -1746,13 +1901,32 @@ export default function ModuloViewport({
               ) : texturasSalvas.data.length === 0 ? (
                 <p className={styles.dicaParede}>Nenhuma textura salva ainda — importe uma imagem acima.</p>
               ) : (
+                <>
+                  <label className={styles.campoCategoriaTextura}>
+                    <span>Tipo</span>
+                    <select
+                      value={filtroCategoriaTextura}
+                      onChange={(e) => setFiltroCategoriaTextura(e.target.value as CategoriaTextura | 'todas')}
+                    >
+                      <option value="todas">Todos ({texturasSalvas.data.length})</option>
+                      {CATEGORIAS_DE_TEXTURA.map((categoria) => (
+                        <option key={categoria.id} value={categoria.id}>
+                          {categoria.rotulo} ({texturasSalvas.data.filter((t) => t.categoria === categoria.id).length})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {texturasSalvas.data.filter((t) => filtroCategoriaTextura === 'todas' || t.categoria === filtroCategoriaTextura)
+                    .length === 0 && <p className={styles.dicaParede}>Nenhuma textura deste tipo.</p>}
                 <ul className={styles.gradeTexturas}>
-                  {texturasSalvas.data.map((textura) => (
+                  {texturasSalvas.data
+                    .filter((t) => filtroCategoriaTextura === 'todas' || t.categoria === filtroCategoriaTextura)
+                    .map((textura) => (
                     <li key={textura.id}>
                       <button
                         type="button"
                         className={textura.url === imagemTinta ? styles.itemTexturaAtivo : styles.itemTextura}
-                        title="Usar esta textura"
+                        title={`Usar esta textura (${ROTULO_CATEGORIA_TEXTURA[textura.categoria] ?? textura.categoria})`}
                         onClick={() => {
                           setImagemTinta(textura.url);
                           setNomeImagemTinta('Textura salva');
@@ -1764,6 +1938,7 @@ export default function ModuloViewport({
                     </li>
                   ))}
                 </ul>
+                </>
               )}
             </div>
           )}
