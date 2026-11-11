@@ -47,7 +47,7 @@ export default function VariaveisGlobaisDialog({ aberto, onFechar }: VariaveisGl
         <h2 className={dialogoStyles.titulo}>Variáveis globais</h2>
         <p className={dialogoStyles.descricao}>
           Um número (ou uma conta, como “60*2”) disponível em qualquer elemento do projeto — em qualquer campo ou
-          variável, acesse com <strong>Global!nome</strong> (ou o atalho <strong>Gl!nome</strong>).
+          variável, acesse com <strong>Global!nome</strong> (ou o atalho <strong>G!nome</strong>).
         </p>
 
         {nomes.length === 0 ? (
@@ -108,7 +108,7 @@ function CampoVariavelGlobal({ nome, valor, onSalvar, onRemover }: CampoVariavel
 
   return (
     <div className={styles.variavelLinha}>
-      <span className={styles.variavelNome} title={`Acesse com Global!${nome} (ou Gl!${nome})`}>
+      <span className={styles.variavelNome} title={`Acesse com Global!${nome} (ou G!${nome})`}>
         {nome}
       </span>
       <input
