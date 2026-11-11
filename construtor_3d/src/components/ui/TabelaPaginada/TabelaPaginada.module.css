@@ -1,0 +1,100 @@
+.moldura {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.area {
+  max-height: 60vh;
+  overflow: auto;
+
+  /* a moldura é quem tem borda, canto arredondado e rolagem; a tabela só preenche */
+  table {
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface);
+    box-shadow: 0 1px 0 var(--border);
+  }
+}
+
+.topo {
+  position: absolute;
+  right: 16px;
+  bottom: 64px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--accent-border);
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.tamanho {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.paginas {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rodape select,
+.paginas button {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-h);
+  font: inherit;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+}
+
+/* Celular: sem rolagem própria dentro da moldura (a página inteira rola, em vez de duas rolagens
+   uma dentro da outra) e a paginação em duas linhas centralizadas */
+@media (max-width: 720px) {
+  .area {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .rodape {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .paginas {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
