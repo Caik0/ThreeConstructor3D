@@ -1,0 +1,95 @@
+.raiz {
+  position: relative;
+}
+
+.botao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-h);
+  font: inherit;
+  cursor: pointer;
+}
+
+.painel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 260px;
+  max-width: calc(100vw - 32px);
+  max-height: 340px;
+  padding: 10px 12px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+  text-align: left;
+}
+
+.painelDireita {
+  right: 0;
+  left: auto;
+}
+
+.grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+
+  legend {
+    padding: 0;
+    margin-bottom: 2px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+}
+
+.opcao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.limpar {
+  align-self: flex-start;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+/* Em telas estreitas o painel ocupa a largura da área de filtros (o pai com position: relative),
+   em vez de sair pela borda da tela a partir do botão */
+@media (max-width: 720px) {
+  .raiz {
+    position: static;
+  }
+
+  .painel,
+  .painelDireita {
+    right: 0;
+    left: 0;
+    min-width: 0;
+    max-width: none;
+  }
+}
