@@ -1,5 +1,5 @@
 import { forwardRef, useId, useState } from 'react';
-import { UNIDADE_CM, avaliarExpressao, type UnidadeCampo } from '../../../lib/medidas/medidas';
+import { avaliarExpressao, type UnidadeCampo, useUnidadeMedida } from '../../../lib/medidas/medidas';
 import styles from './CampoMedida.module.css';
 
 interface CampoMedidaProps {
@@ -43,7 +43,7 @@ const CampoMedida = forwardRef<HTMLInputElement, CampoMedidaProps>(function Camp
   valor,
   min,
   max,
-  unidade = UNIDADE_CM,
+  unidade: unidadeDoCampo,
   resolverExpressao,
   formula,
   onConfirmar,
@@ -52,6 +52,9 @@ const CampoMedida = forwardRef<HTMLInputElement, CampoMedidaProps>(function Camp
   travado = false,
   onAlternarTrava,
 }, ref) {
+  // Sem `unidade` explícita (graus, por exemplo), vale a máscara de medida escolhida pelo usuário
+  const unidadeMostrada = useUnidadeMedida();
+  const unidade = unidadeDoCampo ?? unidadeMostrada;
   const [rascunho, setRascunho] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const idCampo = useId();
@@ -71,7 +74,10 @@ const CampoMedida = forwardRef<HTMLInputElement, CampoMedidaProps>(function Camp
       );
       return;
     }
-    const convertido = unidade.converter(resolvido.valor);
+    // Fórmula com referências é sempre calculada em cm; conta simples vale na unidade mostrada
+    const convertido = resolvido.formula
+      ? (unidade.converterFormula ?? unidade.converter)(resolvido.valor)
+      : unidade.converter(resolvido.valor);
     if (convertido < min || convertido > max) {
       const comUnidade = (v: number) =>
         unidade.simbolo === '°' ? `${unidade.formatar(v)}°` : `${unidade.formatar(v)} ${unidade.simbolo}`;
@@ -127,7 +133,7 @@ const CampoMedida = forwardRef<HTMLInputElement, CampoMedidaProps>(function Camp
           spellCheck={false}
           className={`${styles.input} ${formula ? styles.temFormula : ''}`}
           value={rascunho ?? unidade.formatar(valor)}
-          title={formula ? `Fórmula: ${formula}` : 'Aceita contas, como 60+1,8 ou 120/2'}
+          title={formula ? `Fórmula: ${formula}` : `Aceita contas, como 60+1,8 ou 120/2${unidade.simbolo === 'mm' || unidade.simbolo === 'm' ? ` (em ${unidade.simbolo}; fórmulas com referências contam em cm)` : ''}`}
           aria-invalid={Boolean(mensagem)}
           aria-describedby={mensagem ? idErro : undefined}
           onFocus={() => {
