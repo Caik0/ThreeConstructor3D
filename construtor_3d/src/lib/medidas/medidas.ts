@@ -1,4 +1,8 @@
-// Os dados (estado, API e banco) ficam em mm; a interface mostra e recebe cm
+import { type UnidadeMedida, useUnidadeStore } from '../../store/unidadeStore';
+
+// Os dados (estado, API e banco) ficam em mm; a interface mostra e recebe cm por padrão. O usuário
+// pode trocar só a "máscara" mostrada (mm, cm ou m — ver unidadeStore); fórmulas e contas com
+// referências seguem sempre calculadas e guardadas em cm
 
 export const UNIDADE_EXIBICAO = 'cm';
 
@@ -31,9 +35,47 @@ export interface UnidadeCampo {
   formatar: (valor: number) => string;
   /** Resultado da conta digitada → valor guardado */
   converter: (digitado: number) => number;
+  /** Mesmo que `converter`, mas pro resultado de uma FÓRMULA (com referências), que é sempre
+   * calculada em cm, qualquer que seja a unidade mostrada. Ausente = igual a `converter` */
+  converterFormula?: (calculado: number) => number;
 }
 
 export const UNIDADE_CM: UnidadeCampo = { simbolo: 'cm', nome: 'cm', formatar: formatarCm, converter: cmParaMm };
+
+export const UNIDADE_MM: UnidadeCampo = {
+  simbolo: 'mm',
+  nome: 'mm',
+  formatar: (mm) =>
+    Number.isFinite(mm) ? (Math.round(mm * 10) / 10 || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1, useGrouping: false }) : '',
+  converter: (mm) => Math.round(mm * 10) / 10,
+  converterFormula: cmParaMm,
+};
+
+export const UNIDADE_M: UnidadeCampo = {
+  simbolo: 'm',
+  nome: 'm',
+  formatar: (mm) =>
+    Number.isFinite(mm) ? (Math.round(mm) / 1000 || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3, useGrouping: false }) : '',
+  converter: (metros) => Math.round(metros * 10000) / 10,
+  converterFormula: cmParaMm,
+};
+
+export const UNIDADES_DE_MEDIDA: Record<UnidadeMedida, UnidadeCampo> = { mm: UNIDADE_MM, cm: UNIDADE_CM, m: UNIDADE_M };
+UNIDADE_CM.converterFormula = cmParaMm;
+
+/** A unidade mostrada agora (a do projeto aberto no editor; cm fora dele) */
+export const unidadeAtual = (): UnidadeCampo => UNIDADES_DE_MEDIDA[useUnidadeStore.getState().unidade];
+
+/** Hook: a unidade mostrada, re-renderizando o componente quando o usuário troca */
+export function useUnidadeMedida(): UnidadeCampo {
+  return UNIDADES_DE_MEDIDA[useUnidadeStore((s) => s.unidade)];
+}
+
+/** Valor em mm na unidade mostrada, sem o símbolo ("60,5") */
+export const formatarMedida = (mm: number) => unidadeAtual().formatar(mm);
+
+/** Valor em mm na unidade mostrada, com o símbolo ("60,5 cm") */
+export const comUnidade = (mm: number) => `${unidadeAtual().formatar(mm)} ${unidadeAtual().simbolo}`;
 
 export const UNIDADE_GRAUS: UnidadeCampo = {
   simbolo: '°',
