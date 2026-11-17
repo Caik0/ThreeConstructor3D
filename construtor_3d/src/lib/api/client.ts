@@ -37,6 +37,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
   const token = useAuthStore.getState().token;
   if (token) headers.Authorization = `Bearer ${token}`;
+  // Super admin agindo noutra empresa: a API troca a empresa da requisição por esta (ignorado para os demais)
+  const empresaAtiva = useAuthStore.getState().empresaAtivaId;
+  if (token && empresaAtiva !== null) headers['X-Empresa-Id'] = String(empresaAtiva);
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,

@@ -12,6 +12,10 @@ export interface Modulo {
   /** Convenção dos eixos em que a API tem o módulo salvo (ausente = 1, a antiga); o `elemento` aqui
    * já vem convertido pra convenção em uso */
   convencaoEixos?: number;
+  grupoId: number;
+  grupoNome: string;
+  classificacaoId: number;
+  classificacaoNome: string;
   /** Preenchido quando o módulo foi convertido ao ler (ainda não salvo na convenção nova) */
   conversao?: ResumoDaConversao | null;
 }
@@ -38,16 +42,25 @@ function semIds(entrada: ElementoEntrada): ElementoEntrada {
   return { ...entrada, id: undefined, filhos: entrada.filhos?.map(semIds) };
 }
 
-export function salvarModulo(nome: string, elemento: ElementoEntrada) {
+/** Grupo e classificação são obrigatórios em todo módulo */
+export interface GrupoEClassificacao {
+  grupoId: number;
+  classificacaoId: number;
+}
+
+export function salvarModulo(nome: string, elemento: ElementoEntrada, { grupoId, classificacaoId }: GrupoEClassificacao) {
   return apiPost<Modulo>('/modulos', {
     nome,
+    grupoId,
+    classificacaoId,
     elemento: semIds(elemento),
     convencaoEixos: CONVENCAO_EIXOS_EM_USO,
   }).then(normalizar);
 }
 
-export function renomearModulo(id: number, nome: string) {
-  return apiPut<Modulo>(`/modulos/${id}`, { nome }).then(normalizar);
+/** Muda o nome, o grupo e a classificação de um módulo (o conteúdo é trocado em salvarConteudoModulo) */
+export function atualizarModulo(id: number, nome: string, { grupoId, classificacaoId }: GrupoEClassificacao) {
+  return apiPut<Modulo>(`/modulos/${id}`, { nome, grupoId, classificacaoId }).then(normalizar);
 }
 
 /** Substitui a árvore inteira de um módulo já salvo (editar e salvar de novo) */

@@ -1,4 +1,5 @@
-import { apiGet, apiPost } from './client';
+import type { CategoriaTextura } from '../textura/categorias';
+import { apiGet, apiPost, apiPut } from './client';
 
 // Catálogo de imagens de textura já usadas pelo usuário em alguma face (peça, parede ou piso) —
 // entra sozinho aqui assim que uma textura nova é usada (ver ArquivosElemento.ResolverTexturas na
@@ -6,11 +7,18 @@ import { apiGet, apiPost } from './client';
 export interface Textura {
   id: number;
   url: string;
+  /** Tipo da textura (madeira, espelho, metálica...); novas entram como "geral" */
+  categoria: CategoriaTextura;
   criadoEm: string;
 }
 
 export function listarTexturas() {
   return apiGet<Textura[]>('/texturas');
+}
+
+/** Muda o tipo de uma textura do catálogo */
+export function alterarCategoriaTextura(id: number, categoria: CategoriaTextura) {
+  return apiPut<Textura>(`/texturas/${id}/categoria`, { categoria });
 }
 
 /** Importa uma imagem (data URL JPEG) direto pro catálogo, sem estar ligada a nenhuma face —
