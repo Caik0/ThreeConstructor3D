@@ -4,10 +4,11 @@ import {
   excluirModulo,
   listarModulos,
   obterModulo,
-  renomearModulo,
+  atualizarModulo,
   salvarConteudoModulo,
   salvarModulo,
 } from '../api/modulos';
+import type { GrupoEClassificacao } from '../api/modulos';
 import type { ElementoEntrada } from '../projetos/projetos';
 
 export const MODULOS_KEY = ['modulos'];
@@ -33,16 +34,18 @@ export function useSalvarModulo() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ nome, elemento }: { nome: string; elemento: ElementoEntrada }) => salvarModulo(nome, elemento),
+    mutationFn: ({ nome, elemento, grupoId, classificacaoId }: { nome: string; elemento: ElementoEntrada } & GrupoEClassificacao) =>
+      salvarModulo(nome, elemento, { grupoId, classificacaoId }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: MODULOS_KEY, exact: true }),
   });
 }
 
-export function useRenomearModulo() {
+export function useAtualizarModulo() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, nome }: { id: number; nome: string }) => renomearModulo(id, nome),
+    mutationFn: ({ id, nome, grupoId, classificacaoId }: { id: number; nome: string } & GrupoEClassificacao) =>
+      atualizarModulo(id, nome, { grupoId, classificacaoId }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: MODULOS_KEY, exact: true }),
   });
 }

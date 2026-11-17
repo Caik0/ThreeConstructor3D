@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { listarCadastro } from '../api/cadastros';
 import { concluirPendente, listarPendentes, salvarModulo } from '../api/modulos';
 import { converterGlbEmModulo } from '../modelo3d/importarGlb';
 import { TAMANHO_NOME_ELEMENTO } from '../projetos/projetos';
@@ -29,6 +30,12 @@ export function useImportacaoAutomatica(ativo: boolean = true) {
       const pendentes = await listarPendentes().catch(() => []);
       if (pendentes.length === 0) return;
 
+      // Sem ninguém para escolher, os módulos importados sozinhos ficam no grupo e na classificação padrão
+      const [grupos, classificacoes] = await Promise.all([listarCadastro('grupos-modulo'), listarCadastro('classificacoes-modulo')]).catch(() => [[], []]);
+      const grupoId = grupos.find((g) => g.padrao)?.id;
+      const classificacaoId = classificacoes.find((c) => c.padrao)?.id;
+      if (grupoId === undefined || classificacaoId === undefined) return;
+
       setProcessando(true);
       for (const pendente of pendentes) {
         let sucesso = false;
@@ -37,7 +44,7 @@ export function useImportacaoAutomatica(ativo: boolean = true) {
           if (!resposta.ok) throw new Error('não foi possível baixar o arquivo');
           const bytes = await resposta.arrayBuffer();
           const elemento = await converterGlbEmModulo(bytes, pendente.nome);
-          await salvarModulo(elemento.nome.slice(0, TAMANHO_NOME_ELEMENTO), elemento);
+          await salvarModulo(elemento.nome.slice(0, TAMANHO_NOME_ELEMENTO), elemento, { grupoId, classificacaoId });
           sucesso = true;
         } catch (erro) {
           console.error(`Não foi possível importar "${pendente.nome}" automaticamente:`, erro);
