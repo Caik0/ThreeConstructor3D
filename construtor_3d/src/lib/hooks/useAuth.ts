@@ -1,15 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { cadastrar, login, obterUsuarioAtual } from '../api/auth';
+import { login, obterUsuarioAtual } from '../api/auth';
 import { ApiError } from '../api/client';
 import { useAuthStore } from '../../store/authStore';
-
-export function useCadastrar() {
-  const definirSessao = useAuthStore((s) => s.definirSessao);
-  return useMutation({
-    mutationFn: cadastrar,
-    onSuccess: definirSessao,
-  });
-}
 
 export function useLogin() {
   const definirSessao = useAuthStore((s) => s.definirSessao);

@@ -1,5 +1,5 @@
 import { BoxGeometry, type BufferGeometry, CylinderGeometry, ExtrudeGeometry, Shape } from 'three';
-import { UNIDADE_EXIBICAO, formatarCm } from '../medidas/medidas';
+import { formatarMedida, unidadeAtual } from '../medidas/medidas';
 
 export type TipoForma = 'caixa' | 'cilindro';
 
@@ -217,7 +217,7 @@ export function parametrosValidos(tipo: TipoForma, parametros: Record<string, nu
 
 export function descreverForma(tipo: TipoForma, parametros: Record<string, number>) {
   const { nome, parametros: definicoes } = FORMAS[tipo];
-  // Parâmetros ficam em mm; o texto mostra cm
-  const medidas = definicoes.filter((p) => p.naDescricao !== false).map((p) => formatarCm(parametros[p.chave]) || '–');
-  return `${nome} · ${medidas.join(' × ')} ${UNIDADE_EXIBICAO}`;
+  // Parâmetros ficam em mm; o texto mostra a unidade escolhida (cm por padrão)
+  const medidas = definicoes.filter((p) => p.naDescricao !== false).map((p) => formatarMedida(parametros[p.chave]) || '–');
+  return `${nome} · ${medidas.join(' × ')} ${unidadeAtual().simbolo}`;
 }
