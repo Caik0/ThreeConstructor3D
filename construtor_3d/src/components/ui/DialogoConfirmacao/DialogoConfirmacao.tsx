@@ -9,12 +9,13 @@ interface DialogoConfirmacaoProps {
   titulo: string;
   /** Explica o que vai acontecer */
   children: ReactNode;
-  textoConfirmar: string;
+  /** Sem `textoConfirmar`/`onConfirmar` o diálogo só informa: aparece apenas o botão "Fechar" */
+  textoConfirmar?: string;
   /** Texto do botão enquanto a ação está em andamento */
-  textoConfirmando: string;
+  textoConfirmando?: string;
   confirmando?: boolean;
   erro?: string | null;
-  onConfirmar: () => void;
+  onConfirmar?: () => void;
   onCancelar: () => void;
 }
 
@@ -73,11 +74,13 @@ export default function DialogoConfirmacao({
         )}
         <div className={styles.acoes}>
           <button type="button" className={styles.cancelar} onClick={onCancelar} disabled={confirmando} autoFocus>
-            Cancelar
+            {onConfirmar ? 'Cancelar' : 'Fechar'}
           </button>
-          <button type="button" className={styles.confirmar} onClick={onConfirmar} disabled={confirmando}>
-            {confirmando ? textoConfirmando : textoConfirmar}
-          </button>
+          {onConfirmar && (
+            <button type="button" className={styles.confirmar} onClick={onConfirmar} disabled={confirmando}>
+              {confirmando ? textoConfirmando : textoConfirmar}
+            </button>
+          )}
         </div>
       </div>
     </dialog>

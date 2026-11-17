@@ -34,11 +34,8 @@
 }
 
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
+  width: 100%;
   text-align: center;
-  border-inline: 1px solid var(--border);
   min-height: 100svh;
   display: flex;
   flex-direction: column;
@@ -47,6 +44,14 @@
 
 body {
   margin: 0;
+}
+
+/* Lista aberta dos <select> (combobox): usa as cores do tema. Sem isso, num <select> com fundo
+   transparente a lista abre branca (texto escuro) mesmo no tema escuro */
+select option,
+select optgroup {
+  background: var(--surface);
+  color: var(--text-h);
 }
 
 a {
