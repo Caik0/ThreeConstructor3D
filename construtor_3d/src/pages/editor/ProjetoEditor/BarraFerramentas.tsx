@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import { nomeDaTecla } from '../../../lib/configuracoes/configuracoes';
+import { useConfiguracoesStore } from '../../../store/configuracoesStore';
+import { useGradeStore } from '../../../store/gradeStore';
 import { useAuthStore } from '../../../store/authStore';
 import { PERMISSAO_DA_FERRAMENTA, selecaoCompleta, useEditorStore } from '../../../store/editorStore';
 import { useTemPermissao } from '../../../lib/hooks/usePermissoes';
@@ -10,10 +13,15 @@ export default function BarraFerramentas() {
   const ferramenta = useEditorStore((s) => s.ferramenta);
   const definirFerramenta = useEditorStore((s) => s.definirFerramenta);
   const usuario = useAuthStore((s) => s.usuario);
+  // Teclas de atalho que o usuário escolheu (Configurações)
+  const atalhos = useConfiguracoesStore((s) => s.configuracoes.atalhos);
   const ferramentasPermitidas = FERRAMENTAS.filter((f) => {
     const chave = PERMISSAO_DA_FERRAMENTA[f.id];
     return !chave || temPermissao(usuario, chave);
   });
+
+  const gradeVisivel = useGradeStore((s) => s.visivel);
+  const alternarGrade = useGradeStore((s) => s.alternar);
 
   // Colisão do que está selecionado: aparece só com seleção (vãos não têm colisão) e vale pra todos
   // os selecionados; "ativa" quando todos têm
@@ -48,7 +56,6 @@ export default function BarraFerramentas() {
   const rotuloColisao = colisaoDosAlvos ? 'Desativar colisão do selecionado' : 'Ativar colisão do selecionado';
 
   return (
-    <>
     <div
       role="group"
       aria-label="Ferramentas"
@@ -61,16 +68,26 @@ export default function BarraFerramentas() {
           className={styles.ferramenta}
           aria-pressed={ferramenta === f.id}
           aria-label={f.rotulo}
-          aria-keyshortcuts={f.atalho}
-          title={`${f.rotulo} (${f.atalho})`}
+          aria-keyshortcuts={atalhos[f.id] ? nomeDaTecla(atalhos[f.id]) : undefined}
+          title={atalhos[f.id] ? `${f.rotulo} (${nomeDaTecla(atalhos[f.id])})` : f.rotulo}
           onClick={() => definirFerramenta(f.id)}
         >
           {f.icone}
         </button>
       ))}
-    </div>
-    {podeEditarColisao && alvos.length > 0 && (
-      <div role="group" aria-label="Colisão" className={styles.grupoFerramentas}>
+      <button
+        type="button"
+        className={styles.ferramenta}
+        aria-pressed={gradeVisivel}
+        aria-label={gradeVisivel ? 'Ocultar grade do ambiente' : 'Mostrar grade do ambiente'}
+        title={gradeVisivel ? 'Ocultar grade do ambiente' : 'Mostrar grade do ambiente'}
+        onClick={alternarGrade}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18" strokeDasharray={gradeVisivel ? undefined : '2 2'} />
+        </svg>
+      </button>
+      {podeEditarColisao && alvos.length > 0 && (
         <button
           type="button"
           className={styles.ferramenta}
@@ -85,8 +102,7 @@ export default function BarraFerramentas() {
             {colisaoAtiva && <path d="M12 3v3M8.5 4.5l1.5 2M15.5 4.5l-1.5 2" />}
           </svg>
         </button>
-      </div>
-    )}
-    </>
+      )}
+    </div>
   );
 }
