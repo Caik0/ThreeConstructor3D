@@ -1,5 +1,5 @@
 import { descreverForma, FACES_MODELO, FACES_TEXTURA, facesDaForma, parametrosValidos, type TipoForma } from '../formas/formas';
-import { formatarCm } from '../medidas/medidas';
+import { formatarMedida, unidadeAtual } from '../medidas/medidas';
 
 export type PontoPartida = 'modulos' | 'completo' | 'avulsas' | 'avancada';
 
@@ -79,6 +79,23 @@ export type TipoElemento = 'peca' | 'grupo' | 'parede' | 'piso' | 'abertura';
 
 /** Papel de uma peça ou grupo dentro do módulo (ver CategoriaElemento na API) */
 export type CategoriaElemento = 'estrutura' | 'ferragem' | 'furacao';
+
+/**
+ * Em que superfície o elemento se gruda ao ser aproximado dela (como a colagem dos componentes do
+ * SketchUp): gira pra o plano da base dele (Z = 0, com o Z próprio apontando pra fora) encostar.
+ * Ausente = nenhuma. Ver ColagemElemento na API
+ */
+export type ColagemElemento = 'nenhuma' | 'qualquer' | 'horizontal' | 'vertical' | 'inclinada';
+
+export const NOME_COLAGEM: Record<ColagemElemento, string> = {
+  nenhuma: 'Nenhum',
+  qualquer: 'Qualquer uma',
+  horizontal: 'Horizontal',
+  vertical: 'Vertical',
+  inclinada: 'Inclinada',
+};
+
+export const COLAGENS: ColagemElemento[] = ['nenhuma', 'qualquer', 'horizontal', 'vertical', 'inclinada'];
 
 /** Categoria de um módulo salvo; módulos antigos, sem categoria gravada, contam como estrutura */
 export const categoriaDoModulo = (elemento: { categoria?: CategoriaElemento | null }): CategoriaElemento =>
@@ -186,6 +203,8 @@ export interface Elemento {
   visivel: boolean;
   /** Papel no módulo; só faz sentido em peças e grupos */
   categoria: CategoriaElemento;
+  /** Só em peças e grupos; ausente = nenhuma (módulos salvos antes não têm) */
+  colagem?: ColagemElemento;
   /** Só em peças; uma peça tem forma OU modelo3d, nunca os dois */
   forma: Forma | null;
   /** Só em peças importadas de um .glb: a URL do arquivo ORIGINAL (nunca separado em partes) —
@@ -269,6 +288,7 @@ export interface ElementoEntrada {
   colisao?: boolean;
   visivel?: boolean;
   categoria?: CategoriaElemento;
+  colagem?: ColagemElemento;
   forma?: Forma;
   modelo3d?: string;
   modelo3dNo?: string;
@@ -311,6 +331,8 @@ interface ProjetoBase {
 // Item de GET /api/projetos
 export interface ProjetoResumo extends ProjetoBase {
   totalPecas: number;
+  /** Nome de quem criou o projeto (a lista do super admin mostra projetos de todos da empresa) */
+  donoNome: string;
 }
 
 // Resposta de GET /api/projetos/{id}
@@ -384,17 +406,17 @@ export function paredeValida(parede: Parede | undefined) {
   );
 }
 
-// Parâmetros ficam em mm; o texto mostra cm, no mesmo estilo de descreverForma
+// Parâmetros ficam em mm; o texto mostra a unidade escolhida (cm por padrão), no mesmo estilo de descreverForma
 export function descreverParede({ comprimento, altura, espessura }: Parede) {
-  const medidas = [comprimento, altura, espessura].map((v) => formatarCm(v) || '–').join(' × ');
-  return `Parede · ${medidas} cm`;
+  const medidas = [comprimento, altura, espessura].map((v) => formatarMedida(v) || '–').join(' × ');
+  return `Parede · ${medidas} ${unidadeAtual().simbolo}`;
 }
 
 const NOME_TIPO_ABERTURA: Record<TipoAbertura, string> = { porta: 'Porta', janela: 'Janela' };
 
 export function descreverAbertura({ tipo, largura, altura }: Abertura) {
-  const medidas = [largura, altura].map((v) => formatarCm(v) || '–').join(' × ');
-  return `${NOME_TIPO_ABERTURA[tipo]} · ${medidas} cm`;
+  const medidas = [largura, altura].map((v) => formatarMedida(v) || '–').join(' × ');
+  return `${NOME_TIPO_ABERTURA[tipo]} · ${medidas} ${unidadeAtual().simbolo}`;
 }
 
 /** Piso válido: pelo menos 3 cantos (um polígono de verdade), sem passar do limite, e espessura
@@ -413,18 +435,18 @@ export function pisoValido(piso: Piso | undefined) {
 }
 
 export function descreverPiso({ vertices, espessura }: Piso) {
-  return `Piso · ${vertices.length} cantos · ${formatarCm(espessura) || '–'} cm`;
+  return `Piso · ${vertices.length} cantos · ${formatarMedida(espessura) || '–'} ${unidadeAtual().simbolo}`;
 }
 
 function contarDescendentes(elemento: ElementoModulo): number {
   return (elemento.filhos ?? []).reduce((total, filho) => total + 1 + contarDescendentes(filho), 0);
 }
 
-// Parâmetros ficam em mm; o texto mostra cm, no mesmo estilo de descreverForma. Ordem
+// Parâmetros ficam em mm; o texto mostra a unidade escolhida (cm por padrão), no mesmo estilo de descreverForma. Ordem
 // largura/altura/profundidade, como nas formas normais — não a ordem crua x/y/z (altura é z, não y)
 export function descreverModelo3d(tamanho: Posicao) {
-  const medidas = [tamanho.x, tamanho.z, tamanho.y].map((v) => formatarCm(v) || '–').join(' × ');
-  return `Modelo 3D · ${medidas} cm`;
+  const medidas = [tamanho.x, tamanho.z, tamanho.y].map((v) => formatarMedida(v) || '–').join(' × ');
+  return `Modelo 3D · ${medidas} ${unidadeAtual().simbolo}`;
 }
 
 /** Descrição de uma peça ou grupo salvo como módulo (a raiz é sempre um dos dois), no mesmo
