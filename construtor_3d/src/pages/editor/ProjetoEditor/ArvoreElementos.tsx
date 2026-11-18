@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { FORMAS, TIPOS_FORMA_NOVOS, descreverForma } from '../../../lib/formas/formas';
+import { useEscolhaGrupoEClassificacao } from '../../../lib/hooks/useCadastros';
 import { useSalvarModulo } from '../../../lib/hooks/useModulos';
+import CamposGrupoClassificacao from '../../../components/ui/CamposGrupoClassificacao/CamposGrupoClassificacao';
 import { useTemPermissao } from '../../../lib/hooks/usePermissoes';
 import { PERMISSOES } from '../../../lib/permissoes/permissoes';
 import {
@@ -24,8 +26,10 @@ import {
 } from '../../../store/editorStore';
 import DialogoConfirmacao from '../../../components/ui/DialogoConfirmacao/DialogoConfirmacao';
 import NovoFuroDialog from './NovoFuroDialog';
+import NovoElementoDialog, { type TipoNovoElemento } from './NovoElementoDialog';
 import ImportarModuloDialog from './ImportarModuloDialog';
 import NovaFerragemDialog from './NovaFerragemDialog';
+import { useUnidadeMedida } from '../../../lib/medidas/medidas';
 import styles from './ProjetoEditor.module.css';
 
 const iconProps = {
@@ -184,6 +188,8 @@ interface ArvoreElementosProps {
 }
 
 export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
+  // Re-renderiza as descrições de medida quando o usuário troca a unidade mostrada
+  useUnidadeMedida();
   const elementos = useEditorStore((s) => s.elementos);
   const filhos = useEditorStore((s) => s.filhos);
   const moduloId = useEditorStore((s) => s.moduloId);
@@ -194,20 +200,21 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
   const alternarSelecaoMultipla = useEditorStore((s) => s.alternarSelecaoMultipla);
   const abrirContexto = useEditorStore((s) => s.abrirContexto);
   const adicionarPeca = useEditorStore((s) => s.adicionarPeca);
-  const adicionarGrupo = useEditorStore((s) => s.adicionarGrupo);
   const adicionarParede = useEditorStore((s) => s.adicionarParede);
   const agrupar = useEditorStore((s) => s.agrupar);
   const desagrupar = useEditorStore((s) => s.desagrupar);
   const duplicar = useEditorStore((s) => s.duplicar);
   const importarModulo = useEditorStore((s) => s.importarModulo);
+  const iniciarColocacao = useEditorStore((s) => s.iniciarColocacao);
   const substituirPorModulo = useEditorStore((s) => s.substituirPorModulo);
   const preencherAbertura = useEditorStore((s) => s.preencherAbertura);
   const esvaziarAbertura = useEditorStore((s) => s.esvaziarAbertura);
-  const remover = useEditorStore((s) => s.remover);
+  const removerSelecao = useEditorStore((s) => s.removerSelecao);
   const moverPara = useEditorStore((s) => s.moverPara);
   const alternarVisibilidade = useEditorStore((s) => s.alternarVisibilidade);
   const definirVisibilidadeTodos = useEditorStore((s) => s.definirVisibilidadeTodos);
   const salvarModulo = useSalvarModulo();
+  const escolhaModulo = useEscolhaGrupoEClassificacao();
   const podeCriarForma = useTemPermissao(PERMISSOES.ESTRUTURA_CRIAR_FORMA);
   const podeCriarGrupo = useTemPermissao(PERMISSOES.ESTRUTURA_CRIAR_GRUPO);
   const podeCriarParede = useTemPermissao(PERMISSOES.ESTRUTURA_CRIAR_PAREDE);
@@ -216,6 +223,9 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
   const podeAgrupar = useTemPermissao(PERMISSOES.ESTRUTURA_AGRUPAR);
   const podeDuplicar = useTemPermissao(PERMISSOES.ESTRUTURA_DUPLICAR);
   const podeRemover = useTemPermissao(PERMISSOES.ESTRUTURA_REMOVER);
+  // Remover vale pra seleção inteira; só fica desligado se TODOS os selecionados forem cópias automáticas
+  const todosSaoCopias =
+    !!selecionada && [selecionada, ...selecionadasExtra].every((c) => !!elementos[c]?.copiaDe);
   const podeVisibilidade = useTemPermissao(PERMISSOES.ESTRUTURA_VISIBILIDADE);
 
   const [recolhidos, setRecolhidos] = useState<Set<string>>(() => new Set());
@@ -225,8 +235,10 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
   const [importandoModulo, setImportandoModulo] = useState(false);
   const [criandoFerragem, setCriandoFerragem] = useState(false);
   const [escolhendoFuro, setEscolhendoFuro] = useState(false);
+  const [criandoElemento, setCriandoElemento] = useState<TipoNovoElemento | null>(null);
   const [substituindo, setSubstituindo] = useState<string | null>(null);
   const [preenchendo, setPreenchendo] = useState<string | null>(null);
+  // Escolha do lado do selecionado: ao duplicar (a chave do elemento) e ao inserir um módulo (o módulo)
   const fantasmaRef = useRef<HTMLDivElement>(null);
   const encerrarArrasteRef = useRef<(() => void) | null>(null);
   const raizRef = useRef<HTMLElement>(null);
@@ -256,9 +268,12 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
   }, [selecionada]);
 
   function confirmarSalvarModulo() {
-    if (!selecionada || !nomeModulo?.trim()) return;
+    if (!selecionada || !nomeModulo?.trim() || escolhaModulo.grupoId === null || escolhaModulo.classificacaoId === null) return;
     const elemento = montarEntradaElemento(useEditorStore.getState(), selecionada);
-    salvarModulo.mutate({ nome: nomeModulo.trim(), elemento }, { onSuccess: () => setNomeModulo(null) });
+    salvarModulo.mutate(
+      { nome: nomeModulo.trim(), elemento, grupoId: escolhaModulo.grupoId, classificacaoId: escolhaModulo.classificacaoId },
+      { onSuccess: () => setNomeModulo(null) },
+    );
   }
 
   function alternar(chave: string) {
@@ -436,7 +451,7 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
   }
 
   return (
-    <section ref={raizRef}>
+    <section ref={raizRef} className={styles.estrutura}>
       <div className={styles.painelTopo}>
         <h2 className={styles.secaoTitulo}>
           Estrutura <span className={styles.contador}>{total}</span>
@@ -474,7 +489,9 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
               type="button"
               className={styles.botaoAdicionar}
               disabled={limiteAtingido}
-              onClick={() => adicionarPeca(tipo)}
+              // A caixa abre a modal de configuração inicial; outra forma que volte a ser oferecida
+              // ainda nasce direto, com as medidas padrão
+              onClick={() => (tipo === 'caixa' ? setCriandoElemento('caixa') : adicionarPeca(tipo))}
             >
               + {FORMAS[tipo].nome}
             </button>
@@ -493,7 +510,7 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
             type="button"
             className={styles.botaoAdicionar}
             disabled={limiteAtingido}
-            onClick={adicionarGrupo}
+            onClick={() => setCriandoElemento('grupo')}
           >
             + Grupo
           </button>
@@ -539,7 +556,10 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
             type="button"
             className={styles.acao}
             disabled={!elementoSelecionado || (elementoSelecionado.tipo !== 'peca' && elementoSelecionado.tipo !== 'grupo')}
-            onClick={() => setNomeModulo(elementoSelecionado?.nome ?? '')}
+            onClick={() => {
+              escolhaModulo.definir();
+              setNomeModulo(elementoSelecionado?.nome ?? '');
+            }}
             title="Salva esta peça ou grupo à parte, pra poder importar em outros projetos"
           >
             {ICONES.salvarModulo} Salvar como módulo
@@ -570,7 +590,12 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
             type="button"
             className={styles.acao}
             disabled={!selecionada || limiteAtingido}
-            onClick={() => selecionada && duplicar(selecionada)}
+            onClick={() => {
+              if (!selecionada) return;
+              duplicar(selecionada);
+              const copia = useEditorStore.getState().selecionada;
+              if (copia && copia !== selecionada) iniciarColocacao(copia);
+            }}
           >
             {ICONES.duplicar} Duplicar
           </button>
@@ -610,12 +635,14 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
           <button
             type="button"
             className={styles.acao}
-            disabled={!selecionada || !!elementoSelecionado?.copiaDe}
-            onClick={() => selecionada && remover(selecionada)}
+            disabled={!selecionada || todosSaoCopias}
+            onClick={() => selecionada && removerSelecao()}
             title={
-              elementoSelecionado?.copiaDe
+              todosSaoCopias
                 ? 'Uma cópia automática não se apaga: mude a quantidade na regra do modelo'
-                : 'Remover (Delete)'
+                : selecionadasExtra.length > 0
+                  ? `Remover os ${selecionadasExtra.length + 1} selecionados (Delete)`
+                  : 'Remover (Delete)'
             }
           >
             {ICONES.remover} Remover
@@ -623,20 +650,23 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
         )}
       </div>
 
-      {total === 0 ? (
-        <p className={styles.vazio}>Nenhum elemento ainda. Adicione uma forma ou um grupo acima.</p>
-      ) : (
-        <ul className={styles.arvore}>{renderizar(RAIZ, 0)}</ul>
-      )}
+      {/* Só a hierarquia rola: o topo (título, botões de adicionar e ações) fica fixo */}
+      <div className={styles.arvoreRolavel}>
+        {total === 0 ? (
+          <p className={styles.vazio}>Nenhum elemento ainda. Adicione uma forma ou um grupo acima.</p>
+        ) : (
+          <ul className={styles.arvore}>{renderizar(RAIZ, 0)}</ul>
+        )}
 
-      {arrastando !== null && (
-        <div
-          className={`${styles.soltarRaiz} ${alvo?.chave === RAIZ ? styles.soltarDentro : ''}`}
-          data-soltar-raiz
-        >
-          Solte aqui para mover para o fim da raiz do projeto
-        </div>
-      )}
+        {arrastando !== null && (
+          <div
+            className={`${styles.soltarRaiz} ${alvo?.chave === RAIZ ? styles.soltarDentro : ''}`}
+            data-soltar-raiz
+          >
+            Solte aqui para mover para o fim da raiz do projeto
+          </div>
+        )}
+      </div>
 
       {/* Fora do painel: o backdrop-filter dele faria o position: fixed ficar relativo ao painel */}
       {createPortal(
@@ -670,10 +700,12 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
             }}
           />
         </label>
+        <CamposGrupoClassificacao escolha={escolhaModulo} />
       </DialogoConfirmacao>
 
       {criandoFerragem && <NovaFerragemDialog onFechar={() => setCriandoFerragem(false)} />}
       {escolhendoFuro && <NovoFuroDialog onFechar={() => setEscolhendoFuro(false)} />}
+      {criandoElemento && <NovoElementoDialog tipo={criandoElemento} onFechar={() => setCriandoElemento(null)} />}
 
       <ImportarModuloDialog
         aberto={preenchendo !== null}
@@ -699,7 +731,10 @@ export default function ArvoreElementos({ onFechar }: ArvoreElementosProps) {
       <ImportarModuloDialog
         aberto={importandoModulo}
         onEscolher={(elemento) => {
+          // O módulo entra como fantasma, seguindo o cursor até o clique que o posiciona
           importarModulo(elemento);
+          const inserido = useEditorStore.getState().selecionada;
+          if (inserido) iniciarColocacao(inserido);
           setImportandoModulo(false);
         }}
         onFechar={() => setImportandoModulo(false)}
