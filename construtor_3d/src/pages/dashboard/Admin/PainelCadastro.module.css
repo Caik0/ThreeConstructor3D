@@ -1,0 +1,115 @@
+.painel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+
+  h2 {
+    margin: 0;
+    font-size: 1.2rem;
+  }
+}
+
+.titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.botaoNovo {
+  flex: none;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 8px;
+  color: var(--accent-contrast);
+  background: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent) 85%, black);
+  }
+}
+
+.lista {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.linha {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+}
+
+.nome {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
+.padrao {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.usos {
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.acoes {
+  display: flex;
+  gap: 4px;
+}
+
+.vazia {
+  padding: 16px;
+  text-align: center;
+  color: var(--text);
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rotulo {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+@media (max-width: 720px) {
+  .botaoNovo {
+    width: 100%;
+  }
+}
