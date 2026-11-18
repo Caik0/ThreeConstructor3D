@@ -1,0 +1,36 @@
+.page {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  padding: 40px 24px;
+  text-align: left;
+
+  h1 {
+    margin: 0;
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.conteudo {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.emBreve {
+  margin: 0;
+  color: var(--text);
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 24px 16px;
+  }
+}

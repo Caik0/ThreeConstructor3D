@@ -1,5 +1,5 @@
 import { useForm } from 'react-hook-form';
-import { Link, useLocation, useNavigate, type Location } from 'react-router-dom';
+import { useLocation, useNavigate, type Location } from 'react-router-dom';
 import { useLogin } from '../../../lib/hooks/useAuth';
 import type { LoginDados } from '../../../lib/auth/auth';
 import styles from '../Auth.module.css';
@@ -71,9 +71,6 @@ export default function Login() {
         {entrar.isPending ? 'Entrando…' : 'Entrar'}
       </button>
 
-      <p className={styles.rodape}>
-        Ainda não tem conta? <Link to="/cadastro">Cadastre-se</Link>
-      </p>
     </form>
   );
 }
